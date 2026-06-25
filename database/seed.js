@@ -1,8 +1,7 @@
-// database/seed.js
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 const supabase = require('../src/config/supabase');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 
 const admins = [
   {

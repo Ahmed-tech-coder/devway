@@ -1,5 +1,5 @@
 // src/modules/auth/auth.controller.js
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const authService = require('./auth.service');
 const AppError = require('../../utils/AppError');
 const ApiResponse = require('../../utils/ApiResponse');
