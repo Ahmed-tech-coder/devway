@@ -10,6 +10,7 @@ const profilesRoutes = require('./modules/profiles/profiles.routes');
 const examsRoutes = require('./modules/exams/exams.routes');
 const questionsRoutes = require('./modules/questions/questions.routes');
 const attachmentsRoutes = require('./modules/attachments/attachments.routes');
+const assignmentsRoutes = require('./modules/assignments/assignments.routes');
 
 const app = express();
 
@@ -26,6 +27,8 @@ app.use('/api/profiles', profilesRoutes);
 app.use('/api/exams', examsRoutes);
 app.use('/api', questionsRoutes); // Handles /api/questions and nested routes
 app.use('/api/attachments', attachmentsRoutes);
+app.use('/api/v1/assignments', assignmentsRoutes);
+app.use('/api/assignments', assignmentsRoutes);
 
 // Catch-all for unhandled routes
 app.all('*', (req, res, next) => {
