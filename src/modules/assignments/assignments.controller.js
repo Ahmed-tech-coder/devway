@@ -17,6 +17,43 @@ const handleError = (res, err) => {
   });
 };
 
+const parseIfString = (val) => {
+  if (typeof val === 'string') {
+    try {
+      return JSON.parse(val);
+    } catch (e) {
+      return val;
+    }
+  }
+  return val;
+};
+
+const parseMultipartBody = (body) => {
+  const parsed = { ...body };
+  if (parsed.rubrics !== undefined) parsed.rubrics = parseIfString(parsed.rubrics);
+  if (parsed.resources !== undefined) parsed.resources = parseIfString(parsed.resources);
+  
+  // Cast booleans
+  if (parsed.allowText === 'true') parsed.allowText = true;
+  if (parsed.allowText === 'false') parsed.allowText = false;
+  
+  if (parsed.allowFile === 'true') parsed.allowFile = true;
+  if (parsed.allowFile === 'false') parsed.allowFile = false;
+  
+  if (parsed.allowLateSubmission === 'true') parsed.allowLateSubmission = true;
+  if (parsed.allowLateSubmission === 'false') parsed.allowLateSubmission = false;
+
+  // Cast numeric fields
+  if (parsed.maxGrade !== undefined && parsed.maxGrade !== '') parsed.maxGrade = Number(parsed.maxGrade);
+  if (parsed.maxAttempts !== undefined && parsed.maxAttempts !== '') parsed.maxAttempts = Number(parsed.maxAttempts);
+  if (parsed.maxUploadSize !== undefined && parsed.maxUploadSize !== '') parsed.maxUploadSize = Number(parsed.maxUploadSize);
+  if (parsed.defaultGrade !== undefined && parsed.defaultGrade !== '') parsed.defaultGrade = Number(parsed.defaultGrade);
+  if (parsed.defaultDurationDays !== undefined && parsed.defaultDurationDays !== '') parsed.defaultDurationDays = Number(parsed.defaultDurationDays);
+  if (parsed.templateId !== undefined && parsed.templateId !== '') parsed.templateId = Number(parsed.templateId);
+
+  return parsed;
+};
+
 // =========================================================================
 // TEMPLATE CONTROLLERS
 // =========================================================================
@@ -44,6 +81,7 @@ const getTemplateById = async (req, res) => {
 
 const createTemplate = async (req, res) => {
   try {
+    req.body = parseMultipartBody(req.body);
     const { error, value } = templateSchema.validate(req.body);
     if (error) {
       return res.status(400).json({ success: false, error: error.details[0].message });
@@ -58,6 +96,7 @@ const createTemplate = async (req, res) => {
 
 const updateTemplate = async (req, res) => {
   try {
+    req.body = parseMultipartBody(req.body);
     const { error, value } = templateSchema.validate(req.body, { allowUnknown: true });
     if (error) {
       return res.status(400).json({ success: false, error: error.details[0].message });
@@ -130,6 +169,7 @@ const getAssignmentById = async (req, res) => {
 
 const createAssignment = async (req, res) => {
   try {
+    req.body = parseMultipartBody(req.body);
     const { error, value } = assignmentSchema.validate(req.body, { allowUnknown: true });
     if (error) {
       return res.status(400).json({ success: false, error: error.details[0].message });
@@ -144,6 +184,7 @@ const createAssignment = async (req, res) => {
 
 const updateAssignment = async (req, res) => {
   try {
+    req.body = parseMultipartBody(req.body);
     const { error } = assignmentSchema.validate(req.body, { allowUnknown: true });
     if (error) {
       return res.status(400).json({ success: false, error: error.details[0].message });
