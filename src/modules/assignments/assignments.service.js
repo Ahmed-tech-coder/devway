@@ -360,10 +360,14 @@ const createAssignment = async (assignmentData, files = [], creatorId) => {
 
   // Set initial status: if scheduled and publishDate is in future, set to 'scheduled'
   let initialStatus = status || 'draft';
-  if (publishDate && new Date(publishDate) > new Date()) {
+  let resolvedPublishDate = publishDate ? new Date(publishDate) : null;
+
+  if (initialStatus === 'published') {
+    if (resolvedPublishDate && resolvedPublishDate > new Date()) {
+      resolvedPublishDate = new Date();
+    }
+  } else if (resolvedPublishDate && resolvedPublishDate > new Date()) {
     initialStatus = 'scheduled';
-  } else if (initialStatus === 'published' && (!publishDate || new Date(publishDate) <= new Date())) {
-    initialStatus = 'published';
   }
 
   const { data: assignment, error } = await supabase
@@ -377,7 +381,7 @@ const createAssignment = async (assignmentData, files = [], creatorId) => {
       max_grade: parseFloat(maxGrade),
       deadline: new Date(deadline).toISOString(),
       due_time: dueTime,
-      publish_date: publishDate ? new Date(publishDate).toISOString() : null,
+      publish_date: resolvedPublishDate ? resolvedPublishDate.toISOString() : null,
       allow_late_submission: allowLateSubmission === 'true' || allowLateSubmission === true,
       max_attempts: maxAttempts ? parseInt(maxAttempts) : 1,
       allow_text: allowText === 'true' || allowText === true,
@@ -441,9 +445,15 @@ const updateAssignment = async (id, assignmentData, files = [], editorId) => {
   if (dueTime !== undefined && dueTime !== current.due_time) diff.due_time = { old: current.due_time, new: dueTime };
 
   let nextStatus = status || current.status;
-  if (publishDate && new Date(publishDate) > new Date()) {
+  let resolvedPublishDate = (publishDate !== undefined && publishDate !== null && publishDate !== '') ? new Date(publishDate) : null;
+
+  if (nextStatus === 'published') {
+    if (resolvedPublishDate && resolvedPublishDate > new Date()) {
+      resolvedPublishDate = new Date();
+    }
+  } else if (resolvedPublishDate && resolvedPublishDate > new Date()) {
     nextStatus = 'scheduled';
-  } else if (publishDate && new Date(publishDate) <= new Date() && nextStatus === 'scheduled') {
+  } else if (resolvedPublishDate && resolvedPublishDate <= new Date() && nextStatus === 'scheduled') {
     nextStatus = 'published';
   }
 
@@ -458,7 +468,7 @@ const updateAssignment = async (id, assignmentData, files = [], editorId) => {
       max_grade: maxGrade ? parseFloat(maxGrade) : current.max_grade,
       deadline: deadline ? new Date(deadline).toISOString() : current.deadline,
       due_time: dueTime !== undefined ? dueTime : current.due_time,
-      publish_date: publishDate ? new Date(publishDate).toISOString() : current.publish_date,
+      publish_date: resolvedPublishDate ? resolvedPublishDate.toISOString() : null,
       allow_late_submission: allowLateSubmission !== undefined ? (allowLateSubmission === 'true' || allowLateSubmission === true) : current.allow_late_submission,
       max_attempts: maxAttempts ? parseInt(maxAttempts) : current.max_attempts,
       allow_text: allowText !== undefined ? (allowText === 'true' || allowText === true) : current.allow_text,

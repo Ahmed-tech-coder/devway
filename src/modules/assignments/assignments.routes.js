@@ -8,19 +8,6 @@ const upload = require('../../middleware/upload');
 // All routes require authentication
 router.use(auth);
 
-// =========================================================================
-// ASSIGNMENT TEMPLATES ENDPOINTS
-// =========================================================================
-router.route('/templates')
-  .get(authorize('admin'), assignmentsController.getAllTemplates)
-  .post(authorize('admin'), upload.array('files'), assignmentsController.createTemplate);
-
-router.route('/templates/:id')
-  .get(authorize('admin'), assignmentsController.getTemplateById)
-  .put(authorize('admin'), upload.array('files'), assignmentsController.updateTemplate)
-  .delete(authorize('admin'), assignmentsController.deleteTemplate);
-
-router.post('/templates/:id/duplicate', authorize('admin'), assignmentsController.duplicateTemplate);
 
 // =========================================================================
 // STATS, NOTIFICATIONS & HISTORY ENDPOINTS
