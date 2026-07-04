@@ -6,7 +6,7 @@ const AppError = require('../utils/AppError');
 // Store files in memory buffer rather than saving them locally on disk
 const storage = multer.memoryStorage();
 
-const allowedExtensions = ['.pdf', '.docx', '.xlsx', '.pptx', '.zip', '.jpg', '.jpeg', '.png'];
+const allowedExtensions = ['.pdf', '.docx', '.xlsx', '.pptx', '.zip', '.jpg', '.jpeg', '.png', '.html'];
 
 const fileFilter = (req, file, cb) => {
   const ext = path.extname(file.originalname).toLowerCase();
