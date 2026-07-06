@@ -11,6 +11,9 @@ const router = express.Router();
 // Retrieve all attachments (All authenticated users)
 router.get('/', auth, attachmentsController.getAttachments);
 
+// Retrieve specific attachment details
+router.get('/:id', auth, attachmentsController.getAttachment);
+
 // Create new attachment (Admin only)
 // Note: upload.single('file') must be run first so multipart/form-data fields are parsed into req.body for validation
 router.post(
@@ -20,6 +23,16 @@ router.post(
   upload.single('file'),
   validate(attachmentSchema),
   attachmentsController.createAttachment
+);
+
+// Update an attachment (Admin only)
+router.put(
+  '/:id',
+  auth,
+  authorize('admin'),
+  upload.single('file'),
+  validate(attachmentSchema),
+  attachmentsController.updateAttachment
 );
 
 // Delete an attachment (Admin only)

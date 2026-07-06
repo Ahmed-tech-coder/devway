@@ -113,9 +113,49 @@ const deleteAttachment = async (id) => {
   };
 };
 
+/**
+ * Update an attachment record
+ * @param {number} id
+ * @param {object} updateData
+ * @returns {Promise<object>}
+ */
+const updateAttachment = async (id, updateData) => {
+  const { title, description, category, sessionNumber, fileUrl, links } = updateData;
+  
+  const updatePayload = {};
+  if (title !== undefined) updatePayload.title = title;
+  if (description !== undefined) updatePayload.description = description;
+  if (category !== undefined) updatePayload.category = category;
+  if (sessionNumber !== undefined) updatePayload.session_number = sessionNumber;
+  if (fileUrl !== undefined) updatePayload.file_url = fileUrl;
+  if (links !== undefined) updatePayload.links = links;
+
+  const { data: row, error } = await supabase
+    .from('attachments')
+    .update(updatePayload)
+    .eq('id', id)
+    .select('id, title, description, category, session_number, file_url, links, created_at')
+    .single();
+
+  if (error) throw error;
+
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    category: row.category,
+    sessionNumber: row.session_number,
+    fileUrl: row.file_url,
+    filePath: row.file_url,
+    links: row.links || [],
+    created_at: row.created_at
+  };
+};
+
 module.exports = {
   getAllAttachments,
   getAttachmentById,
   createAttachment,
+  updateAttachment,
   deleteAttachment
 };
