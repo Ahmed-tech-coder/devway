@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS attachments (
   title           VARCHAR(255) NOT NULL,
   description     TEXT,
   file_url        TEXT NOT NULL,
+  links           JSONB DEFAULT '[]'::jsonb,
   created_at      TIMESTAMPTZ DEFAULT NOW(),
   updated_at      TIMESTAMPTZ DEFAULT NOW()
 );

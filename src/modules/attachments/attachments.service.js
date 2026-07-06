@@ -8,7 +8,7 @@ const supabase = require('../../config/supabase');
 const getAllAttachments = async () => {
   const { data, error } = await supabase
     .from('attachments')
-    .select('id, title, description, category, session_number, file_url, created_at')
+    .select('id, title, description, category, session_number, file_url, links, created_at')
     .order('created_at', { ascending: false });
 
   if (error) throw error;
@@ -21,6 +21,7 @@ const getAllAttachments = async () => {
     sessionNumber: row.session_number,
     fileUrl: row.file_url,
     filePath: row.file_url, // Map filePath to fileUrl as the client-side expects it
+    links: row.links || [],
     created_at: row.created_at
   }));
 };
@@ -33,7 +34,7 @@ const getAllAttachments = async () => {
 const getAttachmentById = async (id) => {
   const { data, error } = await supabase
     .from('attachments')
-    .select('id, title, description, category, session_number, file_url, created_at')
+    .select('id, title, description, category, session_number, file_url, links, created_at')
     .eq('id', id)
     .maybeSingle();
 
@@ -48,6 +49,7 @@ const getAttachmentById = async (id) => {
     sessionNumber: data.session_number,
     fileUrl: data.file_url,
     filePath: data.file_url,
+    links: data.links || [],
     created_at: data.created_at
   };
 };
@@ -58,7 +60,7 @@ const getAttachmentById = async (id) => {
  * @returns {Promise<object>}
  */
 const createAttachment = async (data) => {
-  const { title, description, category, sessionNumber, fileUrl } = data;
+  const { title, description, category, sessionNumber, fileUrl, links } = data;
   
   const { data: row, error } = await supabase
     .from('attachments')
@@ -67,9 +69,10 @@ const createAttachment = async (data) => {
       description,
       category,
       session_number: sessionNumber,
-      file_url: fileUrl
+      file_url: fileUrl,
+      links: links
     })
-    .select('id, title, description, category, session_number, file_url, created_at')
+    .select('id, title, description, category, session_number, file_url, links, created_at')
     .single();
 
   if (error) throw error;
@@ -82,6 +85,7 @@ const createAttachment = async (data) => {
     sessionNumber: row.session_number,
     fileUrl: row.file_url,
     filePath: row.file_url,
+    links: row.links || [],
     created_at: row.created_at
   };
 };

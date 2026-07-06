@@ -33,6 +33,15 @@ const createAttachment = async (req, res, next) => {
     // 1. Upload the file to Supabase Storage bucket
     const uploadResult = await storageService.uploadFile('attachments', req.file);
 
+    let linksArray = [];
+    if (req.body.links) {
+      try {
+        linksArray = JSON.parse(req.body.links);
+      } catch (parseError) {
+        console.error('Failed to parse attachment links:', parseError);
+      }
+    }
+
     // 2. Build record payload and insert to database
     const attachmentPayload = {
       title: req.body.title,
@@ -40,7 +49,8 @@ const createAttachment = async (req, res, next) => {
       category: req.body.category,
       sessionNumber: req.body.sessionNumber,
       fileUrl: uploadResult.publicUrl,
-      filePath: uploadResult.path
+      filePath: uploadResult.path,
+      links: linksArray
     };
 
     const attachment = await attachmentsService.createAttachment(attachmentPayload);

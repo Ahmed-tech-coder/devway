@@ -17,7 +17,8 @@ const attachmentSchema = Joi.object({
   description: Joi.string().trim().required().messages({
     'string.empty': 'وصف المرفق مطلوب',
     'any.required': 'وصف المرفق مطلوب'
-  })
+  }),
+  links: Joi.string().allow('').optional()
 });
 
 module.exports = {
