@@ -17,6 +17,9 @@ const assignmentsRoutes = require('./modules/assignments/assignments.routes');
 
 const app = express();
 
+// Enable CORS for all requests
+app.use(cors());
+
 // Secure HTTP headers
 app.use(helmet({
   contentSecurityPolicy: false // Disable CSP if loading resource content from CDNs or local ports
@@ -37,9 +40,6 @@ const apiLimiter = rateLimit({
   legacyHeaders: false,
 });
 app.use('/api/', apiLimiter);
-
-// Enable CORS for all requests
-app.use(cors());
 
 // Parse incoming JSON and URLencoded requests
 app.use(express.json());
