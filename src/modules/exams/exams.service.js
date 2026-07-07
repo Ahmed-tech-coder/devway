@@ -1,5 +1,6 @@
 // src/modules/exams/exams.service.js
 const supabase = require('../../config/supabase');
+const AppError = require('../../utils/AppError');
 
 /**
  * Get all exams, filtered by role
@@ -154,12 +155,24 @@ const submitExamResult = async (examId, userId, userAnswers) => {
 
   if (examErr) throw examErr;
   if (!exam) {
-    throw new Error('الاختبار غير موجود');
+    throw new AppError('الاختبار غير موجود', 404);
   }
 
   // Enforce exam closing deadline check server-side
   if (exam.end_time && new Date(exam.end_time) < new Date()) {
-    throw new Error('انتهى الوقت المسموح لتقديم هذا الاختبار.');
+    throw new AppError('انتهى الوقت المسموح لتقديم هذا الاختبار.', 400);
+  }
+
+  // Check if they already submitted
+  const { data: existingResult } = await supabase
+    .from('exam_results')
+    .select('submitted_at')
+    .eq('exam_id', examId)
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (existingResult && existingResult.submitted_at) {
+    throw new AppError('لقد قمت بتقديم هذا الاختبار بالفعل ولا يمكنك التعديل أو التقديم مرة أخرى.', 400);
   }
 
   // 2. Fetch all questions for this exam to calculate scores

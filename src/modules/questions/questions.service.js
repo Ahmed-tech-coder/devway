@@ -1,13 +1,15 @@
 // src/modules/questions/questions.service.js
 const supabase = require('../../config/supabase');
+const AppError = require('../../utils/AppError');
 
 /**
  * Fetch questions for an exam, masking correct answers for students to prevent cheating
  * @param {number} examId
  * @param {string} role - 'admin' or 'user'
+ * @param {string} userId - User profile UUID (optional)
  * @returns {Promise<Array>}
  */
-const getQuestionsByExamId = async (examId, role) => {
+const getQuestionsByExamId = async (examId, role, userId = null) => {
   // Enforce exam closing deadline check server-side for students
   const { data: exam } = await supabase
     .from('exams')
@@ -16,7 +18,21 @@ const getQuestionsByExamId = async (examId, role) => {
     .maybeSingle();
 
   if (role !== 'admin' && exam && exam.end_time && new Date(exam.end_time) < new Date()) {
-    throw new Error('انتهى الوقت المسموح لتقديم هذا الاختبار.');
+    throw new AppError('انتهى الوقت المسموح لتقديم هذا الاختبار.', 400);
+  }
+
+  // Also check if the student has already submitted this exam
+  if (role !== 'admin' && userId) {
+    const { data: result } = await supabase
+      .from('exam_results')
+      .select('submitted_at')
+      .eq('exam_id', examId)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (result && result.submitted_at) {
+      throw new AppError('لقد قمت بتقديم هذا الاختبار بالفعل ولا يمكنك دخوله مرة أخرى.', 400);
+    }
   }
 
   const { data, error } = await supabase

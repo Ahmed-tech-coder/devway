@@ -9,8 +9,9 @@ const getQuestions = async (req, res, next) => {
   try {
     const { examId } = req.params;
     const role = req.user ? req.user.role : 'user';
+    const userId = req.user ? req.user.id : null;
 
-    const questions = await questionsService.getQuestionsByExamId(examId, role);
+    const questions = await questionsService.getQuestionsByExamId(examId, role, userId);
 
     // Return the array directly as the frontend expects
     return res.status(200).json(questions);
