@@ -30,11 +30,11 @@ app.use(compression());
 
 // API Rate Limiting to prevent brute-force attacks
 const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 1 * 60 * 1000, // 15 minutes
   max: 200, // Limit each IP to 200 requests per windowMs
   message: {
     success: false,
-    message: 'لقد تجاوزت الحد المسموح به من الطلبات. يرجى المحاولة لاحقاً بعد 15 دقيقة.'
+    message: 'لقد تجاوزت الحد المسموح به من الطلبات. يرجى المحاولة لاحقاً بعد دقيقة.'
   },
   standardHeaders: true,
   legacyHeaders: false,
