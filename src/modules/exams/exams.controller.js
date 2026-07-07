@@ -151,6 +151,22 @@ const getViolationCount = async (req, res, next) => {
   }
 };
 
+
+/**
+ * Get exam review and results for the logged-in student
+ */
+const getExamReview = async (req, res, next) => {
+  try {
+    const { id: examId } = req.params;
+    const userId = req.user.id;
+
+    const review = await examsService.getExamReviewForUser(examId, userId);
+    return res.status(200).json(review);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getExams,
   getExam,
@@ -160,5 +176,6 @@ module.exports = {
   submitExam,
   getResults,
   recordViolation,
-  getViolationCount
+  getViolationCount,
+  getExamReview
 };

@@ -408,6 +408,96 @@ const getExamViolation = async (examId, userId) => {
   };
 };
 
+
+/**
+ * Retrieve user's exam results and mapped questions with their answers/correct options
+ * @param {number} examId
+ * @param {string} userId
+ * @returns {Promise<object>}
+ */
+const getExamReviewForUser = async (examId, userId) => {
+  // 1. Fetch exam result
+  const { data: result, error: resultErr } = await supabase
+    .from('exam_results')
+    .select('*')
+    .eq('exam_id', examId)
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (resultErr) throw resultErr;
+
+  if (!result || !result.submitted_at) {
+    throw new AppError('لم تقم بتقديم هذا الاختبار بعد لرؤية النتيجة والتفاصيل.', 400);
+  }
+
+  // 2. Fetch exam details
+  const { data: exam, error: examErr } = await supabase
+    .from('exams')
+    .select('*')
+    .eq('id', examId)
+    .maybeSingle();
+
+  if (examErr) throw examErr;
+  if (!exam) throw new AppError('الاختبار غير موجود', 404);
+
+  // 3. Fetch questions
+  const { data: questions, error: questionsErr } = await supabase
+    .from('questions')
+    .select('id, content, option_a, option_b, option_c, option_d, correct_option')
+    .eq('exam_id', examId)
+    .order('id', { ascending: true });
+
+  if (questionsErr) throw questionsErr;
+
+  // 4. Fetch user's answers
+  const { data: answers, error: answersErr } = await supabase
+    .from('exam_answers')
+    .select('*')
+    .eq('result_id', result.id);
+
+  if (answersErr) throw answersErr;
+
+  // Create a map of user answers for quick access
+  const answerMap = new Map();
+  if (answers) {
+    answers.forEach((ans) => {
+      answerMap.set(ans.question_id, ans);
+    });
+  }
+
+  // 5. Map questions with student answers
+  const mappedQuestions = (questions || []).map((q) => {
+    const userAns = answerMap.get(q.id);
+    return {
+      id: q.id,
+      content: q.content,
+      option_a: q.option_a,
+      option_b: q.option_b,
+      option_c: q.option_c,
+      option_d: q.option_d,
+      correct_option: q.correct_option ? q.correct_option.trim().toLowerCase() : null,
+      selected_option: userAns ? userAns.selected_option.trim().toLowerCase() : null,
+      is_correct: userAns ? !!userAns.is_correct : false
+    };
+  });
+
+  return {
+    exam: {
+      id: exam.id,
+      title: exam.title,
+      duration: exam.duration,
+      mark_per_question: exam.mark_per_question
+    },
+    result: {
+      score: result.score !== null ? Number(result.score) : 0,
+      total_marks: result.total_marks !== null ? Number(result.total_marks) : 0,
+      percentage: result.percentage !== null ? Number(result.percentage) : 0,
+      submitted_at: result.submitted_at
+    },
+    questions: mappedQuestions
+  };
+};
+
 module.exports = {
   getAllExams,
   getExamById,
@@ -417,5 +507,6 @@ module.exports = {
   submitExamResult,
   getExamResults,
   recordExamViolation,
-  getExamViolation
+  getExamViolation,
+  getExamReviewForUser
 };
