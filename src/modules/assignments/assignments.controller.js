@@ -1,6 +1,10 @@
 // src/modules/assignments/assignments.controller.js
 const assignmentsService = require('./assignments.service');
 const {
+  mapAssignmentToDTO,
+  mapAssignmentDetailsToDTO
+} = require('../../utils/dtos');
+const {
   assignmentSchema,
   templateSchema,
   submissionSchema,
@@ -140,7 +144,8 @@ const duplicateTemplate = async (req, res) => {
 const getAllAssignments = async (req, res) => {
   try {
     const assignments = await assignmentsService.getAllAssignments(req.user.role, req.user.id);
-    return res.status(200).json({ success: true, data: assignments });
+    const dtos = assignments.map(a => mapAssignmentToDTO(a));
+    return res.status(200).json({ success: true, data: dtos });
   } catch (err) {
     return handleError(res, err);
   }
@@ -149,7 +154,8 @@ const getAllAssignments = async (req, res) => {
 const getDeletedAssignments = async (req, res) => {
   try {
     const assignments = await assignmentsService.getDeletedAssignments();
-    return res.status(200).json({ success: true, data: assignments });
+    const dtos = assignments.map(a => mapAssignmentToDTO(a));
+    return res.status(200).json({ success: true, data: dtos });
   } catch (err) {
     return handleError(res, err);
   }
@@ -161,7 +167,8 @@ const getAssignmentById = async (req, res) => {
     if (!assignment) {
       return res.status(404).json({ success: false, error: 'الواجب المطلوب غير موجود أو غير متاح' });
     }
-    return res.status(200).json({ success: true, data: assignment });
+    const dto = mapAssignmentDetailsToDTO(assignment);
+    return res.status(200).json({ success: true, data: dto });
   } catch (err) {
     return handleError(res, err);
   }
@@ -176,7 +183,8 @@ const createAssignment = async (req, res) => {
     }
 
     const assignment = await assignmentsService.createAssignment(req.body, req.files || [], req.user.id);
-    return res.status(201).json({ success: true, data: assignment });
+    const dto = mapAssignmentDetailsToDTO(assignment);
+    return res.status(201).json({ success: true, data: dto });
   } catch (err) {
     return handleError(res, err);
   }
@@ -191,7 +199,8 @@ const updateAssignment = async (req, res) => {
     }
 
     const assignment = await assignmentsService.updateAssignment(req.params.id, req.body, req.files || [], req.user.id);
-    return res.status(200).json({ success: true, data: assignment });
+    const dto = mapAssignmentDetailsToDTO(assignment);
+    return res.status(200).json({ success: true, data: dto });
   } catch (err) {
     return handleError(res, err);
   }
@@ -421,6 +430,19 @@ const markNotificationsRead = async (req, res) => {
   }
 };
 
+const recordViolation = async (req, res) => {
+  try {
+    const { id: assignmentId } = req.params;
+    const userId = req.user.id;
+    const { reason } = req.body;
+
+    const result = await assignmentsService.recordAssignmentViolation(assignmentId, userId, reason || 'Tab switch / blur');
+    return res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    return handleError(res, err);
+  }
+};
+
 module.exports = {
   // Templates
   getAllTemplates,
@@ -448,6 +470,7 @@ module.exports = {
   finalizeSubmission,
   removeSubmissionFile,
   gradeSubmission,
+  recordViolation,
   returnSubmission,
 
   // Comments

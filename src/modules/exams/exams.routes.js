@@ -25,6 +25,9 @@ router.delete('/:id', auth, authorize('admin'), examsController.deleteExam);
 // Submit answers for scoring (All authenticated users)
 router.post('/:id/submit', auth, validate(submissionSchema), examsController.submitExam);
 
+// Record violation (All authenticated users)
+router.post('/:id/violation', auth, examsController.recordViolation);
+
 // Retrieve submission results list (Admin only)
 router.get('/:id/results', auth, authorize('admin'), examsController.getResults);
 

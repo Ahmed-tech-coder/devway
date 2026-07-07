@@ -8,6 +8,17 @@ const supabase = require('../../config/supabase');
  * @returns {Promise<Array>}
  */
 const getQuestionsByExamId = async (examId, role) => {
+  // Enforce exam closing deadline check server-side for students
+  const { data: exam } = await supabase
+    .from('exams')
+    .select('end_time')
+    .eq('id', examId)
+    .maybeSingle();
+
+  if (role !== 'admin' && exam && exam.end_time && new Date(exam.end_time) < new Date()) {
+    throw new Error('انتهى الوقت المسموح لتقديم هذا الاختبار.');
+  }
+
   const { data, error } = await supabase
     .from('questions')
     .select('id, exam_id, content, option_a, option_b, option_c, option_d, correct_option')

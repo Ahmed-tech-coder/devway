@@ -1,6 +1,9 @@
 // src/app.js
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const compression = require('compression');
+const rateLimit = require('express-rate-limit');
 const errorHandler = require('./middleware/errorHandler');
 const AppError = require('./utils/AppError');
 
@@ -13,6 +16,27 @@ const attachmentsRoutes = require('./modules/attachments/attachments.routes');
 const assignmentsRoutes = require('./modules/assignments/assignments.routes');
 
 const app = express();
+
+// Secure HTTP headers
+app.use(helmet({
+  contentSecurityPolicy: false // Disable CSP if loading resource content from CDNs or local ports
+}));
+
+// Gzip/Brotli connection response compression
+app.use(compression());
+
+// API Rate Limiting to prevent brute-force attacks
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 200, // Limit each IP to 200 requests per windowMs
+  message: {
+    success: false,
+    message: 'لقد تجاوزت الحد المسموح به من الطلبات. يرجى المحاولة لاحقاً بعد 15 دقيقة.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api/', apiLimiter);
 
 // Enable CORS for all requests
 app.use(cors());

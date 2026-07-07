@@ -248,19 +248,29 @@ const getAllAssignments = async (role, userId = null) => {
   const { data: assignments, error } = await query;
   if (error) throw error;
 
-  // Enhance assignments list with submission stats for admin or submission status for user
+  // Enhance assignments list using optimized batching to prevent N+1 query loop
   const result = [];
-  for (const assign of assignments) {
-    if (role === 'admin') {
-      const { data: subs } = await supabase
-        .from('assignment_submissions')
-        .select('status, grade')
-        .eq('assignment_id', assign.id);
+  if (role === 'admin') {
+    const { data: allSubs } = await supabase
+      .from('assignment_submissions')
+      .select('assignment_id, status, grade');
 
-      const totalSubmitted = subs?.filter(s => s.status !== 'draft').length || 0;
-      const totalGraded = subs?.filter(s => s.status === 'graded').length || 0;
-      const totalLate = subs?.filter(s => s.status === 'late').length || 0;
-      const grades = subs?.filter(s => s.grade !== null).map(s => parseFloat(s.grade)) || [];
+    const subsMap = {};
+    if (allSubs) {
+      allSubs.forEach(s => {
+        if (!subsMap[s.assignment_id]) {
+          subsMap[s.assignment_id] = [];
+        }
+        subsMap[s.assignment_id].push(s);
+      });
+    }
+
+    for (const assign of assignments) {
+      const subs = subsMap[assign.id] || [];
+      const totalSubmitted = subs.filter(s => s.status !== 'draft').length;
+      const totalGraded = subs.filter(s => s.status === 'graded').length;
+      const totalLate = subs.filter(s => s.status === 'late').length;
+      const grades = subs.filter(s => s.grade !== null).map(s => parseFloat(s.grade));
       const avgGrade = grades.length > 0 ? (grades.reduce((a, b) => a + b, 0) / grades.length).toFixed(2) : 0;
 
       result.push({
@@ -272,18 +282,24 @@ const getAllAssignments = async (role, userId = null) => {
           avgGrade: parseFloat(avgGrade)
         }
       });
-    } else {
-      // Find user submission
-      const { data: userSub } = await supabase
-        .from('assignment_submissions')
-        .select('id, status, grade')
-        .eq('assignment_id', assign.id)
-        .eq('user_id', userId)
-        .maybeSingle();
+    }
+  } else {
+    const { data: userSubs } = await supabase
+      .from('assignment_submissions')
+      .select('id, assignment_id, status, grade')
+      .eq('user_id', userId);
 
+    const subMap = {};
+    if (userSubs) {
+      userSubs.forEach(s => {
+        subMap[s.assignment_id] = s;
+      });
+    }
+
+    for (const assign of assignments) {
       result.push({
         ...assign,
-        submission: userSub || null
+        submission: subMap[assign.id] || null
       });
     }
   }
@@ -845,6 +861,77 @@ const saveOrSubmitSubmission = async (assignmentId, userId, textAnswer, files = 
 
   // 3. Upload student files to this specific attempt
   if (files && files.length > 0) {
+    const extensionToMimetypes = {
+      pdf: ['application/pdf'],
+      doc: ['application/msword'],
+      docx: ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+      xls: ['application/vnd.ms-excel'],
+      xlsx: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+      png: ['image/png'],
+      jpg: ['image/jpeg', 'image/jpg'],
+      jpeg: ['image/jpeg'],
+      gif: ['image/gif'],
+      zip: ['application/zip', 'application/x-zip-compressed', 'multipart/x-zip'],
+      rar: ['application/x-rar-compressed', 'application/octet-stream', 'application/x-rar'],
+      txt: ['text/plain'],
+      py: ['text/x-python', 'application/x-python', 'text/plain'],
+      js: ['text/javascript', 'application/javascript', 'application/x-javascript'],
+      cpp: ['text/x-c', 'text/plain', 'text/x-c++src'],
+      c: ['text/x-c', 'text/plain'],
+      java: ['text/x-java-source', 'text/plain'],
+      html: ['text/html'],
+      css: ['text/css'],
+      mp4: ['video/mp4'],
+      mp3: ['audio/mpeg']
+    };
+
+    const checkMagicBytes = (buffer, ext) => {
+      if (!buffer || buffer.length < 4) return true; // Skip signature check if buffer is missing
+      const hex = buffer.toString('hex', 0, 4).toLowerCase();
+      switch (ext) {
+        case 'pdf':
+          return hex.startsWith('25504446'); // %PDF
+        case 'png':
+          return hex.startsWith('89504e47'); // PNG
+        case 'jpg':
+        case 'jpeg':
+          return hex.startsWith('ffd8ff'); // JPEG
+        case 'zip':
+        case 'docx':
+        case 'xlsx':
+        case 'pptx':
+          return hex.startsWith('504b0304'); // PK.. (Zip/Office signature)
+        case 'rar':
+          return hex.startsWith('52617221'); // Rar!
+        default:
+          return true; // No magic bytes rule defined for this extension
+      }
+    };
+
+    const allowed = assignment.allowed_extensions
+      ? assignment.allowed_extensions.split(',').map(e => e.trim().toLowerCase().replace('.', ''))
+      : [];
+
+    for (const file of files) {
+      const ext = (file.originalname.split('.').pop() || '').toLowerCase();
+      
+      // 1. Extension validation (case-insensitive)
+      if (allowed.length > 0 && !allowed.includes(ext)) {
+        throw new Error(`نوع الملف (${ext}) غير مسموح به في هذا الواجب. الصيغ المسموحة: ${assignment.allowed_extensions}`);
+      }
+
+      // 2. Real MIME type validation
+      const allowedMimes = extensionToMimetypes[ext];
+      if (allowedMimes && !allowedMimes.includes(file.mimetype.toLowerCase())) {
+        throw new Error(`الملف (${file.originalname}) غير صالح. نوع الملف الحقيقي لا يطابق الامتداد.`);
+      }
+
+      // 3. Binary File Signature (Magic Bytes) validation
+      if (!checkMagicBytes(file.buffer, ext)) {
+        throw new Error(`الملف (${file.originalname}) غير صالح. تم تعديل امتداد الملف بطريقة غير صحيحة.`);
+      }
+    }
+
     for (const file of files) {
       const uploadResult = await storageService.uploadFile('attachments', file);
       const ext = (file.originalname.split('.').pop() || '').toLowerCase();
@@ -1285,6 +1372,66 @@ const triggerNotificationsForSubmission = async (submission, isLate) => {
   }
 };
 
+/**
+ * Record a tab-switching or copy violation for an assignment
+ */
+const recordAssignmentViolation = async (assignmentId, userId, reason) => {
+  // 1. Fetch assignment config to know max violations limit
+  const { data: assignment, error: assignErr } = await supabase
+    .from('assignments')
+    .select('max_violations')
+    .eq('id', assignmentId)
+    .maybeSingle();
+
+  if (assignErr) throw assignErr;
+
+  // 2. Fetch or create submission
+  let { data: sub } = await supabase
+    .from('assignment_submissions')
+    .select('id, violations_count, violations_log')
+    .eq('assignment_id', assignmentId)
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (!sub) {
+    const { data: newSub, error: insErr } = await supabase
+      .from('assignment_submissions')
+      .insert({
+        assignment_id: assignmentId,
+        user_id: userId,
+        status: 'draft'
+      })
+      .select('id, violations_count, violations_log')
+      .single();
+
+    if (insErr) throw insErr;
+    sub = newSub;
+  }
+
+  const count = (sub.violations_count || 0) + 1;
+  const log = Array.isArray(sub.violations_log) ? sub.violations_log : [];
+  log.push({ timestamp: new Date().toISOString(), reason });
+
+  // Update DB. Wrap in try-catch in case columns are missing
+  try {
+    await supabase
+      .from('assignment_submissions')
+      .update({
+        violations_count: count,
+        violations_log: log
+      })
+      .eq('id', sub.id);
+  } catch (dbErr) {
+    console.warn('[Violation DB Log Warning] Fallback triggered as table columns violations_count/violations_log may be missing:', dbErr.message);
+  }
+
+  return { 
+    count, 
+    log,
+    max_violations: assignment?.max_violations !== undefined ? assignment.max_violations : 3 
+  };
+};
+
 module.exports = {
   // Templates
   getAllTemplates,
@@ -1327,5 +1474,8 @@ module.exports = {
   markNotificationsAsRead,
 
   // Scheduler
-  runSchedulerSync
+  runSchedulerSync,
+
+  // Violation recorder
+  recordAssignmentViolation
 };

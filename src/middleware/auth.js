@@ -1,9 +1,11 @@
 // src/middleware/auth.js
-const supabase = require('../config/supabase');
+const jwt = require('jsonwebtoken');
 const AppError = require('../utils/AppError');
 
+const JWT_SECRET = process.env.JWT_SECRET || 'devway_access_secret_key_2026';
+
 /**
- * Middleware to authenticate requests using a simple session token (user ID)
+ * Middleware to authenticate requests using standard JWT
  */
 const auth = async (req, res, next) => {
   try {
@@ -17,20 +19,23 @@ const auth = async (req, res, next) => {
       return next(new AppError('غير مصرح بالدخول - الرجاء تسجيل الدخول أولاً', 401));
     }
 
-    // In this simple session strategy, the token is the user's profile ID (UUID)
-    const { data: user, error } = await supabase
-      .from('profiles')
-      .select('id, full_name, email, role, phone')
-      .eq('id', token)
-      .maybeSingle();
-
-    if (error || !user) {
-      return next(new AppError('الجلسة غير صالحة أو الحساب غير موجود', 401));
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      
+      // Attach user information decoded from stateless JWT to request
+      req.user = {
+        id: decoded.id,
+        role: decoded.role,
+        email: decoded.email,
+        full_name: decoded.full_name,
+        name: decoded.name || decoded.full_name,
+        phone: decoded.phone
+      };
+      
+      next();
+    } catch (err) {
+      return next(new AppError('الجلسة غير صالحة أو انتهت صلاحيتها', 401));
     }
-
-    // Attach user information to the request
-    req.user = user;
-    next();
   } catch (error) {
     next(error);
   }

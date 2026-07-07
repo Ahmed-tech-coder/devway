@@ -26,13 +26,14 @@ const getAllExams = async (role, userId = null) => {
         )
       `)
       .eq('status', true)
+      .eq('exam_results.user_id', userId)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
 
     return (data || []).map((row) => {
-      // Find the result corresponding to this specific user (there should be at most one due to unique constraint)
-      const userResult = row.exam_results?.find((r) => r.user_id === userId);
+      // Find the result corresponding to this specific user (filtered by PostgREST above)
+      const userResult = row.exam_results && row.exam_results.length > 0 ? row.exam_results[0] : null;
       return {
         id: row.id,
         title: row.title,
@@ -154,6 +155,11 @@ const submitExamResult = async (examId, userId, userAnswers) => {
   if (examErr) throw examErr;
   if (!exam) {
     throw new Error('الاختبار غير موجود');
+  }
+
+  // Enforce exam closing deadline check server-side
+  if (exam.end_time && new Date(exam.end_time) < new Date()) {
+    throw new Error('انتهى الوقت المسموح لتقديم هذا الاختبار.');
   }
 
   // 2. Fetch all questions for this exam to calculate scores
@@ -285,6 +291,69 @@ const getExamResults = async (examId) => {
   }));
 };
 
+/**
+ * Record a tab-switching or copy violation for an exam
+ */
+const recordExamViolation = async (examId, userId, reason) => {
+  // 1. Fetch exam configuration to know max violations limit
+  const { data: exam, error: examErr } = await supabase
+    .from('exams')
+    .select('max_violations')
+    .eq('id', examId)
+    .maybeSingle();
+
+  if (examErr) throw examErr;
+
+  // 2. Fetch or create the exam result draft
+  let { data: result } = await supabase
+    .from('exam_results')
+    .select('id, violations_count, violations_log')
+    .eq('exam_id', examId)
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (!result) {
+    const { data: newRes, error: insErr } = await supabase
+      .from('exam_results')
+      .insert({
+        exam_id: examId,
+        user_id: userId,
+        score: null,
+        total_marks: null,
+        percentage: null,
+        submitted_at: null
+      })
+      .select('id, violations_count, violations_log')
+      .single();
+
+    if (insErr) throw insErr;
+    result = newRes;
+  }
+
+  const count = (result.violations_count || 0) + 1;
+  const log = Array.isArray(result.violations_log) ? result.violations_log : [];
+  log.push({ timestamp: new Date().toISOString(), reason });
+
+  // Update DB. Wrap in try-catch in case columns are missing
+  try {
+    await supabase
+      .from('exam_results')
+      .update({
+        violations_count: count,
+        violations_log: log
+      })
+      .eq('id', result.id);
+  } catch (dbErr) {
+    console.warn('[Violation DB Log Warning] Fallback triggered as table columns violations_count/violations_log may be missing:', dbErr.message);
+  }
+
+  return { 
+    count, 
+    log,
+    max_violations: exam?.max_violations !== undefined ? exam.max_violations : 3 
+  };
+};
+
 module.exports = {
   getAllExams,
   getExamById,
@@ -292,5 +361,6 @@ module.exports = {
   updateExam,
   deleteExam,
   submitExamResult,
-  getExamResults
+  getExamResults,
+  recordExamViolation
 };

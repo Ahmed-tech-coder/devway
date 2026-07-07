@@ -16,4 +16,7 @@ router.post('/login', validate(loginSchema), authController.login);
 // Protected endpoint to fetch current user context
 router.get('/me', auth, authController.me);
 
+// Endpoint to refresh token
+router.post('/refresh', authController.refresh);
+
 module.exports = router;

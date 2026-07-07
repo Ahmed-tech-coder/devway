@@ -2,6 +2,7 @@
 const profilesService = require('./profiles.service');
 const ApiResponse = require('../../utils/ApiResponse');
 const AppError = require('../../utils/AppError');
+const { mapProfileToDTO } = require('../../utils/dtos');
 
 /**
  * Get all user profiles (admin access only)
@@ -10,10 +11,11 @@ const getProfiles = async (req, res, next) => {
   try {
     const profiles = await profilesService.getAllUserProfiles();
     
+    const dtos = (profiles || []).map(p => mapProfileToDTO(p));
     // Format response payload exactly as frontend expects: { profiles: [...] }
     return res.status(200).json({
       success: true,
-      profiles
+      profiles: dtos
     });
   } catch (error) {
     next(error);
