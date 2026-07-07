@@ -76,7 +76,9 @@ const mapExamToDTO = (e) => {
     end_time: e.end_time,
     status: e.status,
     created_at: e.created_at,
-    exam_results: e.exam_results || []
+    score: e.score !== undefined ? e.score : null,
+    percentage: e.percentage !== undefined ? e.percentage : null,
+    submitted_at: e.submitted_at !== undefined ? e.submitted_at : null
   };
 };
 
