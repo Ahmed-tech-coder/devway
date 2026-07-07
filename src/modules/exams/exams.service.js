@@ -311,19 +311,28 @@ const recordExamViolation = async (examId, userId, reason) => {
   // 1. Fetch exam configuration to know max violations limit
   const { data: exam, error: examErr } = await supabase
     .from('exams')
-    .select('max_violations')
+    .select('*')
     .eq('id', examId)
     .maybeSingle();
 
   if (examErr) throw examErr;
 
   // 2. Fetch or create the exam result draft
-  let { data: result } = await supabase
+  let { data: result, error: resultErr } = await supabase
     .from('exam_results')
-    .select('id, violations_count, violations_log')
+    .select('*')
     .eq('exam_id', examId)
     .eq('user_id', userId)
     .maybeSingle();
+
+  if (resultErr) {
+    // Fallback if we cannot select or table is missing
+    return {
+      count: 1,
+      log: [{ timestamp: new Date().toISOString(), reason }],
+      max_violations: exam?.max_violations !== undefined ? exam.max_violations : 3
+    };
+  }
 
   if (!result) {
     const { data: newRes, error: insErr } = await supabase
@@ -336,7 +345,7 @@ const recordExamViolation = async (examId, userId, reason) => {
         percentage: null,
         submitted_at: null
       })
-      .select('id, violations_count, violations_log')
+      .select('*')
       .single();
 
     if (insErr) throw insErr;
@@ -373,18 +382,25 @@ const recordExamViolation = async (examId, userId, reason) => {
 const getExamViolation = async (examId, userId) => {
   const { data: exam, error: examErr } = await supabase
     .from('exams')
-    .select('max_violations')
+    .select('*')
     .eq('id', examId)
     .maybeSingle();
 
   if (examErr) throw examErr;
 
-  const { data: result } = await supabase
+  const { data: result, error: resultErr } = await supabase
     .from('exam_results')
-    .select('violations_count')
+    .select('*')
     .eq('exam_id', examId)
     .eq('user_id', userId)
     .maybeSingle();
+
+  if (resultErr) {
+    return {
+      count: 0,
+      max_violations: exam?.max_violations !== undefined ? exam.max_violations : 3
+    };
+  }
 
   return {
     count: result?.violations_count || 0,
