@@ -27,6 +27,7 @@ router.post('/:id/submit', auth, validate(submissionSchema), examsController.sub
 
 // Record violation (All authenticated users)
 router.post('/:id/violation', auth, examsController.recordViolation);
+router.get('/:id/violation', auth, examsController.getViolationCount);
 
 // Retrieve submission results list (Admin only)
 router.get('/:id/results', auth, authorize('admin'), examsController.getResults);

@@ -44,6 +44,7 @@ router.post('/:id/submissions/submit', authorize('user'), upload.array('files'),
 
 // Record tab-switch/copy violation
 router.post('/:id/violation', authorize('user'), assignmentsController.recordViolation);
+router.get('/:id/violation', authorize('user'), assignmentsController.getViolationCount);
 
 // Get student's own submission details (or admin view specific student's submission via ?userId=...)
 router.get('/:assignmentId/submission/details', assignmentsController.getSubmissionDetails);

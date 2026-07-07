@@ -354,6 +354,31 @@ const recordExamViolation = async (examId, userId, reason) => {
   };
 };
 
+/**
+ * Get current violation count and configuration for an exam
+ */
+const getExamViolation = async (examId, userId) => {
+  const { data: exam, error: examErr } = await supabase
+    .from('exams')
+    .select('max_violations')
+    .eq('id', examId)
+    .maybeSingle();
+
+  if (examErr) throw examErr;
+
+  const { data: result } = await supabase
+    .from('exam_results')
+    .select('violations_count')
+    .eq('exam_id', examId)
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  return {
+    count: result?.violations_count || 0,
+    max_violations: exam?.max_violations !== undefined ? exam.max_violations : 3
+  };
+};
+
 module.exports = {
   getAllExams,
   getExamById,
@@ -362,5 +387,6 @@ module.exports = {
   deleteExam,
   submitExamResult,
   getExamResults,
-  recordExamViolation
+  recordExamViolation,
+  getExamViolation
 };

@@ -443,6 +443,18 @@ const recordViolation = async (req, res) => {
   }
 };
 
+const getViolationCount = async (req, res) => {
+  try {
+    const { id: assignmentId } = req.params;
+    const userId = req.user.id;
+
+    const result = await assignmentsService.getAssignmentViolation(assignmentId, userId);
+    return res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    return handleError(res, err);
+  }
+};
+
 module.exports = {
   // Templates
   getAllTemplates,
@@ -471,6 +483,7 @@ module.exports = {
   removeSubmissionFile,
   gradeSubmission,
   recordViolation,
+  getViolationCount,
   returnSubmission,
 
   // Comments

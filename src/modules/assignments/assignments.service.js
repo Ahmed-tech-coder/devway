@@ -1432,6 +1432,31 @@ const recordAssignmentViolation = async (assignmentId, userId, reason) => {
   };
 };
 
+/**
+ * Get current violation count and configuration for an assignment
+ */
+const getAssignmentViolation = async (assignmentId, userId) => {
+  const { data: assignment, error: assignErr } = await supabase
+    .from('assignments')
+    .select('max_violations')
+    .eq('id', assignmentId)
+    .maybeSingle();
+
+  if (assignErr) throw assignErr;
+
+  const { data: sub } = await supabase
+    .from('assignment_submissions')
+    .select('violations_count')
+    .eq('assignment_id', assignmentId)
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  return {
+    count: sub?.violations_count || 0,
+    max_violations: assignment?.max_violations !== undefined ? assignment.max_violations : 3
+  };
+};
+
 module.exports = {
   // Templates
   getAllTemplates,
@@ -1477,5 +1502,6 @@ module.exports = {
   runSchedulerSync,
 
   // Violation recorder
-  recordAssignmentViolation
+  recordAssignmentViolation,
+  getAssignmentViolation
 };

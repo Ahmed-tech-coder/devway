@@ -136,6 +136,21 @@ const recordViolation = async (req, res, next) => {
   }
 };
 
+/**
+ * Get current violation count for exam
+ */
+const getViolationCount = async (req, res, next) => {
+  try {
+    const { id: examId } = req.params;
+    const userId = req.user.id;
+
+    const result = await examsService.getExamViolation(examId, userId);
+    return res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getExams,
   getExam,
@@ -144,5 +159,6 @@ module.exports = {
   deleteExam,
   submitExam,
   getResults,
-  recordViolation
+  recordViolation,
+  getViolationCount
 };
