@@ -908,11 +908,19 @@ const saveOrSubmitSubmission = async (assignmentId, userId, textAnswer, files = 
       }
     };
 
+    const maxUploadSizeMB = assignment.max_upload_size || 10;
+    const maxUploadSizeBytes = maxUploadSizeMB * 1024 * 1024;
+
     const allowed = assignment.allowed_extensions
       ? assignment.allowed_extensions.split(',').map(e => e.trim().toLowerCase().replace('.', ''))
       : [];
 
     for (const file of files) {
+      // 0. Size validation
+      if (file.size > maxUploadSizeBytes) {
+        throw new Error(`حجم الملف (${file.originalname}) يتجاوز الحد الأقصى المسموح به وهو ${maxUploadSizeMB} ميجابايت.`);
+      }
+
       const ext = (file.originalname.split('.').pop() || '').toLowerCase();
       
       // 1. Extension validation (case-insensitive)
@@ -1379,7 +1387,7 @@ const recordAssignmentViolation = async (assignmentId, userId, reason) => {
   // 1. Fetch assignment config to know max violations limit
   const { data: assignment, error: assignErr } = await supabase
     .from('assignments')
-    .select('max_violations')
+    .select('*')
     .eq('id', assignmentId)
     .maybeSingle();
 
@@ -1388,7 +1396,7 @@ const recordAssignmentViolation = async (assignmentId, userId, reason) => {
   // 2. Fetch or create submission
   let { data: sub } = await supabase
     .from('assignment_submissions')
-    .select('id, violations_count, violations_log')
+    .select('*')
     .eq('assignment_id', assignmentId)
     .eq('user_id', userId)
     .maybeSingle();
@@ -1401,7 +1409,7 @@ const recordAssignmentViolation = async (assignmentId, userId, reason) => {
         user_id: userId,
         status: 'draft'
       })
-      .select('id, violations_count, violations_log')
+      .select('*')
       .single();
 
     if (insErr) throw insErr;
@@ -1438,7 +1446,7 @@ const recordAssignmentViolation = async (assignmentId, userId, reason) => {
 const getAssignmentViolation = async (assignmentId, userId) => {
   const { data: assignment, error: assignErr } = await supabase
     .from('assignments')
-    .select('max_violations')
+    .select('*')
     .eq('id', assignmentId)
     .maybeSingle();
 
@@ -1446,7 +1454,7 @@ const getAssignmentViolation = async (assignmentId, userId) => {
 
   const { data: sub } = await supabase
     .from('assignment_submissions')
-    .select('violations_count')
+    .select('*')
     .eq('assignment_id', assignmentId)
     .eq('user_id', userId)
     .maybeSingle();

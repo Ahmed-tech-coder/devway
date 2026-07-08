@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS assignments (
   max_upload_size       INT DEFAULT 10, -- in MB
   status                VARCHAR(20) DEFAULT 'draft' CHECK (status IN ('draft', 'scheduled', 'published', 'closed', 'archived')),
   rubrics               JSONB DEFAULT '[]'::jsonb,
+  max_violations        INT DEFAULT 3,
   version               INT DEFAULT 1,
   created_by            UUID REFERENCES profiles(id) ON DELETE SET NULL,
   template_id           INT REFERENCES assignment_templates(id) ON DELETE SET NULL,
@@ -77,15 +78,17 @@ CREATE TABLE IF NOT EXISTS assignment_files (
 
 -- 5. Submissions Table
 CREATE TABLE IF NOT EXISTS assignment_submissions (
-  id            SERIAL PRIMARY KEY,
-  assignment_id INT NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
-  user_id       UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-  status        VARCHAR(20) DEFAULT 'draft' CHECK (status IN ('draft', 'submitted', 'late', 'under_review', 'returned', 'graded')),
-  grade         DECIMAL(10,2) DEFAULT NULL,
-  feedback      TEXT,
-  graded_at     TIMESTAMPTZ DEFAULT NULL,
-  created_at    TIMESTAMPTZ DEFAULT NOW(),
-  updated_at    TIMESTAMPTZ DEFAULT NOW(),
+  id               SERIAL PRIMARY KEY,
+  assignment_id    INT NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
+  user_id          UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  status           VARCHAR(20) DEFAULT 'draft' CHECK (status IN ('draft', 'submitted', 'late', 'under_review', 'returned', 'graded')),
+  grade            DECIMAL(10,2) DEFAULT NULL,
+  feedback         TEXT,
+  violations_count INT DEFAULT 0,
+  violations_log   JSONB DEFAULT '[]'::jsonb,
+  graded_at        TIMESTAMPTZ DEFAULT NULL,
+  created_at       TIMESTAMPTZ DEFAULT NOW(),
+  updated_at       TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(assignment_id, user_id)
 );
 
