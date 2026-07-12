@@ -13,6 +13,12 @@ router.get('/', auth, examsController.getExams);
 // Get specific exam details
 router.get('/:id', auth, examsController.getExam);
 
+// Start/resume an exam session
+router.post('/:id/start', auth, examsController.startExam);
+
+// Save a single question answer dynamically
+router.post('/:id/answers', auth, examsController.saveAnswer);
+
 // Create new exam (Admin only)
 router.post('/', auth, authorize('admin'), validate(examSchema), examsController.createExam);
 

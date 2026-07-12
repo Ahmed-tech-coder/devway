@@ -26,14 +26,51 @@ const getExams = async (req, res, next) => {
 const getExam = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const exam = await examsService.getExamById(id);
+    const userId = req.user ? req.user.id : null;
+    const role = req.user ? req.user.role : 'user';
+
+    const exam = await examsService.getExamForUser(id, userId, role);
 
     if (!exam) {
       return next(new AppError('الاختبار غير موجود', 404));
     }
 
     const dto = mapExamDetailsToDTO(exam);
+    if (exam.remaining_seconds !== undefined) {
+      dto.remaining_seconds = exam.remaining_seconds;
+    }
     return res.status(200).json(dto);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Start or resume an exam session
+ */
+const startExam = async (req, res, next) => {
+  try {
+    const { id: examId } = req.params;
+    const userId = req.user.id;
+
+    const result = await examsService.startExamSession(examId, userId);
+    return res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Save user answer for a question dynamically
+ */
+const saveAnswer = async (req, res, next) => {
+  try {
+    const { id: examId } = req.params;
+    const userId = req.user.id;
+    const { question_id, selected_option } = req.body;
+
+    const result = await examsService.saveUserAnswer(examId, userId, question_id, selected_option);
+    return res.status(200).json(result);
   } catch (error) {
     next(error);
   }
@@ -138,6 +175,8 @@ const getExamReview = async (req, res, next) => {
 module.exports = {
   getExams,
   getExam,
+  startExam,
+  saveAnswer,
   createExam,
   updateExam,
   deleteExam,

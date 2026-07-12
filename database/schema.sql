@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS exam_results (
   percentage       DECIMAL(5,2),
   violations_count INT DEFAULT 0,
   violations_log   JSONB DEFAULT '[]'::jsonb,
+  started_at       TIMESTAMPTZ,
   submitted_at     TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(exam_id, user_id)
 );

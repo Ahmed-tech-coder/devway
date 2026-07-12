@@ -69,6 +69,38 @@ const getExamById = async (id) => {
 };
 
 /**
+ * Get exam details for a specific user, including remaining time
+ * @param {number} examId
+ * @param {string} userId
+ * @param {string} role
+ * @returns {Promise<object|null>}
+ */
+const getExamForUser = async (examId, userId, role) => {
+  const exam = await getExamById(examId);
+  if (!exam) return null;
+
+  if (role !== 'admin' && userId) {
+    const { data: result } = await supabase
+      .from('exam_results')
+      .select('submitted_at, started_at')
+      .eq('exam_id', examId)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (result) {
+      if (result.submitted_at) {
+        exam.remaining_seconds = 0;
+      } else {
+        const elapsed = Math.floor((Date.now() - new Date(result.started_at)) / 1000);
+        const remaining = exam.duration * 60 - elapsed;
+        exam.remaining_seconds = remaining > 0 ? remaining : 0;
+      }
+    }
+  }
+  return exam;
+};
+
+/**
  * Create a new exam
  * @param {object} examData
  * @returns {Promise<object>}
@@ -145,6 +177,204 @@ const deleteExam = async (id) => {
  * @param {Array} userAnswers - Array of { question_id, selected_option }
  * @returns {Promise<object>} - Result summary
  */
+/**
+ * Shared helper to check if the session is expired and trigger auto-submission.
+ * @param {number} examId
+ * @param {string} userId
+ * @param {string} startedAt
+ * @param {number} durationMinutes
+ * @returns {Promise<object>}
+ */
+const checkAndHandleExpiration = async (examId, userId, startedAt, durationMinutes) => {
+  const elapsed = Math.floor((Date.now() - new Date(startedAt)) / 1000);
+  const remaining = durationMinutes * 60 - elapsed;
+
+  if (remaining <= 0) {
+    // Session is expired! Trigger auto-submit with empty/no answers (will grade whatever is in the DB)
+    await submitExamResult(examId, userId, []);
+    throw new AppError('انتهى الوقت المسموح لتقديم هذا الاختبار.', 400);
+  }
+  return { expired: false, remaining_seconds: remaining };
+};
+
+/**
+ * Starts or resumes an exam session for a student
+ * @param {number} examId
+ * @param {string} userId
+ * @returns {Promise<object>}
+ */
+const startExamSession = async (examId, userId) => {
+  const [examRes, resultRes] = await Promise.all([
+    supabase
+      .from('exams')
+      .select('*')
+      .eq('id', examId)
+      .maybeSingle(),
+    supabase
+      .from('exam_results')
+      .select('*')
+      .eq('exam_id', examId)
+      .eq('user_id', userId)
+      .maybeSingle()
+  ]);
+
+  if (examRes.error) throw examRes.error;
+  if (resultRes.error) throw resultRes.error;
+
+  const exam = examRes.data;
+  if (!exam) {
+    throw new AppError('الاختبار غير موجود', 404);
+  }
+
+  // Check if exam overall deadline has passed
+  if (exam.end_time && new Date(exam.end_time) < new Date()) {
+    throw new AppError('انتهى الوقت المسموح لتقديم هذا الاختبار.', 400);
+  }
+
+  const existingResult = resultRes.data;
+  if (existingResult) {
+    if (existingResult.submitted_at) {
+      throw new AppError('لقد قمت بتقديم هذا الاختبار بالفعل ولا يمكنك دخوله مرة أخرى.', 400);
+    }
+
+    // Check expiration using centralized helper
+    const { remaining_seconds } = await checkAndHandleExpiration(
+      examId,
+      userId,
+      existingResult.started_at,
+      exam.duration
+    );
+
+    // Fetch existing answers to restore to frontend
+    const { data: answers, error: answersErr } = await supabase
+      .from('exam_answers')
+      .select('question_id, selected_option')
+      .eq('result_id', existingResult.id);
+
+    if (answersErr) throw answersErr;
+
+    const answersMap = {};
+    if (answers) {
+      answers.forEach((ans) => {
+        answersMap[ans.question_id] = ans.selected_option;
+      });
+    }
+
+    return {
+      remaining_seconds,
+      answers: answersMap
+    };
+  }
+
+  // Create new exam result session
+  const { data: newResult, error: insertErr } = await supabase
+    .from('exam_results')
+    .insert({
+      exam_id: Number(examId),
+      user_id: userId,
+      score: null,
+      total_marks: null,
+      percentage: null,
+      submitted_at: null,
+      started_at: new Date().toISOString()
+    })
+    .select('*')
+    .single();
+
+  if (insertErr) throw insertErr;
+
+  return {
+    remaining_seconds: exam.duration * 60,
+    answers: {}
+  };
+};
+
+/**
+ * Saves a single question answer dynamically
+ * @param {number} examId
+ * @param {string} userId
+ * @param {number} questionId
+ * @param {string} selectedOption
+ * @returns {Promise<object>}
+ */
+const saveUserAnswer = async (examId, userId, questionId, selectedOption) => {
+  const [examRes, resultRes] = await Promise.all([
+    supabase
+      .from('exams')
+      .select('duration')
+      .eq('id', examId)
+      .maybeSingle(),
+    supabase
+      .from('exam_results')
+      .select('id, submitted_at, started_at')
+      .eq('exam_id', examId)
+      .eq('user_id', userId)
+      .maybeSingle()
+  ]);
+
+  if (examRes.error) throw examRes.error;
+  if (resultRes.error) throw resultRes.error;
+
+  const exam = examRes.data;
+  if (!exam) throw new AppError('الاختبار غير موجود', 404);
+
+  const result = resultRes.data;
+  if (!result) {
+    throw new AppError('جلسة الاختبار غير موجودة. يرجى بدء الاختبار أولاً.', 404);
+  }
+
+  if (result.submitted_at) {
+    throw new AppError('تم تقديم هذا الاختبار بالفعل ولا يمكن تعديل الإجابات.', 400);
+  }
+
+  // Check expiration using centralized helper
+  const { remaining_seconds } = await checkAndHandleExpiration(
+    examId,
+    userId,
+    result.started_at,
+    exam.duration
+  );
+
+  // Fetch the correct option for this question to calculate correctness
+  const { data: question, error: questionErr } = await supabase
+    .from('questions')
+    .select('correct_option')
+    .eq('id', questionId)
+    .eq('exam_id', examId)
+    .maybeSingle();
+
+  if (questionErr) throw questionErr;
+  if (!question) {
+    throw new AppError('السؤال غير موجود في هذا الاختبار', 404);
+  }
+
+  const isCorrect = question.correct_option.trim().toLowerCase() === selectedOption.trim().toLowerCase();
+
+  // Upsert the answer
+  const { error: upsertErr } = await supabase
+    .from('exam_answers')
+    .upsert({
+      result_id: result.id,
+      question_id: questionId,
+      selected_option: selectedOption,
+      is_correct: isCorrect
+    }, { onConflict: 'result_id,question_id' });
+
+  if (upsertErr) throw upsertErr;
+
+  return {
+    success: true,
+    remaining_seconds
+  };
+};
+
+/**
+ * Submits an exam, scores it, and records the results and answers sequentially
+ * @param {number} examId
+ * @param {string} userId - Profile UUID
+ * @param {Array} userAnswers - Array of { question_id, selected_option }
+ * @returns {Promise<object>} - Result summary
+ */
 const submitExamResult = async (examId, userId, userAnswers) => {
   // 1. Fetch exam configuration, existing submission, and questions in parallel
   const [examRes, existingRes, questionsRes] = await Promise.all([
@@ -155,7 +385,7 @@ const submitExamResult = async (examId, userId, userAnswers) => {
       .maybeSingle(),
     supabase
       .from('exam_results')
-      .select('submitted_at')
+      .select('id, submitted_at, started_at')
       .eq('exam_id', examId)
       .eq('user_id', userId)
       .maybeSingle(),
@@ -184,6 +414,29 @@ const submitExamResult = async (examId, userId, userAnswers) => {
     throw new AppError('لقد قمت بتقديم هذا الاختبار بالفعل ولا يمكنك التعديل أو التقديم مرة أخرى.', 400);
   }
 
+  // Create result row if not exists
+  let resultId;
+  if (!existingResult) {
+    const { data: newResult, error: insertErr } = await supabase
+      .from('exam_results')
+      .insert({
+        exam_id: Number(examId),
+        user_id: userId,
+        score: null,
+        total_marks: null,
+        percentage: null,
+        submitted_at: null,
+        started_at: new Date().toISOString()
+      })
+      .select('id')
+      .single();
+
+    if (insertErr) throw insertErr;
+    resultId = newResult.id;
+  } else {
+    resultId = existingResult.id;
+  }
+
   const questions = questionsRes.data;
   if (!questions || questions.length === 0) {
     throw new Error('لا توجد أسئلة في هذا الاختبار بعد');
@@ -194,19 +447,48 @@ const submitExamResult = async (examId, userId, userAnswers) => {
     questionMap.set(q.id, q.correct_option.trim().toLowerCase());
   });
 
-  // 3. Score the answers
+  // 2. If userAnswers are provided, upsert them first (final sync)
+  if (userAnswers && userAnswers.length > 0) {
+    const answersToUpsert = userAnswers.map((ua) => {
+      const correctAnswer = questionMap.get(ua.question_id);
+      const isCorrect = correctAnswer ? correctAnswer === ua.selected_option.trim().toLowerCase() : false;
+      return {
+        result_id: resultId,
+        question_id: ua.question_id,
+        selected_option: ua.selected_option,
+        is_correct: isCorrect
+      };
+    });
+
+    const { error: upsertErr } = await supabase
+      .from('exam_answers')
+      .upsert(answersToUpsert, { onConflict: 'result_id,question_id' });
+
+    if (upsertErr) throw upsertErr;
+  }
+
+  // 3. Fetch all current answers from DB to calculate score
+  const { data: dbAnswers, error: dbAnswersErr } = await supabase
+    .from('exam_answers')
+    .select('question_id, selected_option, is_correct')
+    .eq('result_id', resultId);
+
+  if (dbAnswersErr) throw dbAnswersErr;
+
+  const dbAnswersMap = new Map();
+  if (dbAnswers) {
+    dbAnswers.forEach((ans) => {
+      dbAnswersMap.set(ans.question_id, ans);
+    });
+  }
+
+  // 4. Score the answers
   let correctCount = 0;
-  const scoredAnswers = userAnswers.map((ua) => {
-    const correctAnswer = questionMap.get(ua.question_id);
-    const isCorrect = correctAnswer ? correctAnswer === ua.selected_option.trim().toLowerCase() : false;
-    if (isCorrect) {
+  questions.forEach((q) => {
+    const ans = dbAnswersMap.get(q.id);
+    if (ans && ans.is_correct) {
       correctCount++;
     }
-    return {
-      question_id: ua.question_id,
-      selected_option: ua.selected_option,
-      is_correct: isCorrect
-    };
   });
 
   const totalQuestions = questions.length;
@@ -215,45 +497,23 @@ const submitExamResult = async (examId, userId, userAnswers) => {
   const totalMarks = totalQuestions * markPerQuestion;
   const percentage = (correctCount / totalQuestions) * 100;
 
-  // 4. Save result (using upsert with onConflict)
-  const { data: resultRes, error: resultErr } = await supabase
+  // 5. Mark the exam result as submitted atomically (only if submitted_at is currently null)
+  const { data: updatedResult, error: updateErr } = await supabase
     .from('exam_results')
-    .upsert({
-      exam_id: examId,
-      user_id: userId,
+    .update({
       score,
       total_marks: totalMarks,
       percentage,
       submitted_at: new Date().toISOString()
-    }, { onConflict: 'exam_id,user_id' })
-    .select('id')
-    .single();
+    })
+    .eq('id', resultId)
+    .is('submitted_at', null)
+    .select('*')
+    .maybeSingle();
 
-  if (resultErr) throw resultErr;
-  const resultId = resultRes.id;
-
-  // 5. Delete previous answers for this result if updating
-  const { error: deleteErr } = await supabase
-    .from('exam_answers')
-    .delete()
-    .eq('result_id', resultId);
-
-  if (deleteErr) throw deleteErr;
-
-  // 6. Insert new answers bulk
-  if (scoredAnswers.length > 0) {
-    const answersToInsert = scoredAnswers.map((sa) => ({
-      result_id: resultId,
-      question_id: sa.question_id,
-      selected_option: sa.selected_option,
-      is_correct: sa.is_correct
-    }));
-
-    const { error: insertErr } = await supabase
-      .from('exam_answers')
-      .insert(answersToInsert);
-
-    if (insertErr) throw insertErr;
+  if (updateErr) throw updateErr;
+  if (!updatedResult) {
+    throw new AppError('لقد تم تقديم هذا الاختبار بالفعل.', 400);
   }
 
   return {
@@ -401,9 +661,13 @@ const getExamReviewForUser = async (examId, userId) => {
 module.exports = {
   getAllExams,
   getExamById,
+  getExamForUser,
   createExam,
   updateExam,
   deleteExam,
+  checkAndHandleExpiration,
+  startExamSession,
+  saveUserAnswer,
   submitExamResult,
   getExamResults,
   getExamReviewForUser
