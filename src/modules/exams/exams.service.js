@@ -146,14 +146,30 @@ const deleteExam = async (id) => {
  * @returns {Promise<object>} - Result summary
  */
 const submitExamResult = async (examId, userId, userAnswers) => {
-  // 1. Fetch exam configuration
-  const { data: exam, error: examErr } = await supabase
-    .from('exams')
-    .select('*')
-    .eq('id', examId)
-    .maybeSingle();
+  // 1. Fetch exam configuration, existing submission, and questions in parallel
+  const [examRes, existingRes, questionsRes] = await Promise.all([
+    supabase
+      .from('exams')
+      .select('*')
+      .eq('id', examId)
+      .maybeSingle(),
+    supabase
+      .from('exam_results')
+      .select('submitted_at')
+      .eq('exam_id', examId)
+      .eq('user_id', userId)
+      .maybeSingle(),
+    supabase
+      .from('questions')
+      .select('id, correct_option')
+      .eq('exam_id', examId)
+  ]);
 
-  if (examErr) throw examErr;
+  if (examRes.error) throw examRes.error;
+  if (existingRes.error) throw existingRes.error;
+  if (questionsRes.error) throw questionsRes.error;
+
+  const exam = examRes.data;
   if (!exam) {
     throw new AppError('الاختبار غير موجود', 404);
   }
@@ -163,25 +179,12 @@ const submitExamResult = async (examId, userId, userAnswers) => {
     throw new AppError('انتهى الوقت المسموح لتقديم هذا الاختبار.', 400);
   }
 
-  // Check if they already submitted
-  const { data: existingResult } = await supabase
-    .from('exam_results')
-    .select('submitted_at')
-    .eq('exam_id', examId)
-    .eq('user_id', userId)
-    .maybeSingle();
-
+  const existingResult = existingRes.data;
   if (existingResult && existingResult.submitted_at) {
     throw new AppError('لقد قمت بتقديم هذا الاختبار بالفعل ولا يمكنك التعديل أو التقديم مرة أخرى.', 400);
   }
 
-  // 2. Fetch all questions for this exam to calculate scores
-  const { data: questions, error: questionsErr } = await supabase
-    .from('questions')
-    .select('id, correct_option')
-    .eq('exam_id', examId);
-
-  if (questionsErr) throw questionsErr;
+  const questions = questionsRes.data;
   if (!questions || questions.length === 0) {
     throw new Error('لا توجد أسئلة في هذا الاختبار بعد');
   }
@@ -312,40 +315,41 @@ const getExamResults = async (examId) => {
  * @returns {Promise<object>}
  */
 const getExamReviewForUser = async (examId, userId) => {
-  // 1. Fetch exam result
-  const { data: result, error: resultErr } = await supabase
-    .from('exam_results')
-    .select('*')
-    .eq('exam_id', examId)
-    .eq('user_id', userId)
-    .maybeSingle();
+  // 1. Fetch exam result, exam details, and questions in parallel
+  const [resultRes, examRes, questionsRes] = await Promise.all([
+    supabase
+      .from('exam_results')
+      .select('*')
+      .eq('exam_id', examId)
+      .eq('user_id', userId)
+      .maybeSingle(),
+    supabase
+      .from('exams')
+      .select('*')
+      .eq('id', examId)
+      .maybeSingle(),
+    supabase
+      .from('questions')
+      .select('id, content, option_a, option_b, option_c, option_d, correct_option')
+      .eq('exam_id', examId)
+      .order('id', { ascending: true })
+  ]);
 
-  if (resultErr) throw resultErr;
+  if (resultRes.error) throw resultRes.error;
+  if (examRes.error) throw examRes.error;
+  if (questionsRes.error) throw questionsRes.error;
 
+  const result = resultRes.data;
   if (!result || !result.submitted_at) {
     throw new AppError('لم تقم بتقديم هذا الاختبار بعد لرؤية النتيجة والتفاصيل.', 400);
   }
 
-  // 2. Fetch exam details
-  const { data: exam, error: examErr } = await supabase
-    .from('exams')
-    .select('*')
-    .eq('id', examId)
-    .maybeSingle();
-
-  if (examErr) throw examErr;
+  const exam = examRes.data;
   if (!exam) throw new AppError('الاختبار غير موجود', 404);
 
-  // 3. Fetch questions
-  const { data: questions, error: questionsErr } = await supabase
-    .from('questions')
-    .select('id, content, option_a, option_b, option_c, option_d, correct_option')
-    .eq('exam_id', examId)
-    .order('id', { ascending: true });
+  const questions = questionsRes.data;
 
-  if (questionsErr) throw questionsErr;
-
-  // 4. Fetch user's answers
+  // 2. Fetch user's answers using result.id
   const { data: answers, error: answersErr } = await supabase
     .from('exam_answers')
     .select('*')

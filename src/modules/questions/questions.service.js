@@ -10,38 +10,54 @@ const AppError = require('../../utils/AppError');
  * @returns {Promise<Array>}
  */
 const getQuestionsByExamId = async (examId, role, userId = null) => {
-  // Enforce exam closing deadline check server-side for students
-  const { data: exam } = await supabase
-    .from('exams')
-    .select('end_time')
-    .eq('id', examId)
-    .maybeSingle();
+  // Run all checks and data fetching in parallel to optimize load speed
+  const promises = [
+    supabase
+      .from('exams')
+      .select('end_time')
+      .eq('id', examId)
+      .maybeSingle(),
+    supabase
+      .from('questions')
+      .select('id, exam_id, content, option_a, option_b, option_c, option_d, correct_option')
+      .eq('exam_id', examId)
+      .order('id', { ascending: true })
+  ];
 
+  if (role !== 'admin' && userId) {
+    promises.push(
+      supabase
+        .from('exam_results')
+        .select('submitted_at')
+        .eq('exam_id', examId)
+        .eq('user_id', userId)
+        .maybeSingle()
+    );
+  }
+
+  const results = await Promise.all(promises);
+  
+  const examRes = results[0];
+  const questionsRes = results[1];
+  const resultsRes = role !== 'admin' && userId ? results[2] : null;
+
+  if (examRes.error) throw examRes.error;
+  if (questionsRes.error) throw questionsRes.error;
+  if (resultsRes && resultsRes.error) throw resultsRes.error;
+
+  const exam = examRes.data;
   if (role !== 'admin' && exam && exam.end_time && new Date(exam.end_time) < new Date()) {
     throw new AppError('انتهى الوقت المسموح لتقديم هذا الاختبار.', 400);
   }
 
-  // Also check if the student has already submitted this exam
-  if (role !== 'admin' && userId) {
-    const { data: result } = await supabase
-      .from('exam_results')
-      .select('submitted_at')
-      .eq('exam_id', examId)
-      .eq('user_id', userId)
-      .maybeSingle();
-
+  if (resultsRes) {
+    const result = resultsRes.data;
     if (result && result.submitted_at) {
       throw new AppError('لقد قمت بتقديم هذا الاختبار بالفعل ولا يمكنك دخوله مرة أخرى.', 400);
     }
   }
 
-  const { data, error } = await supabase
-    .from('questions')
-    .select('id, exam_id, content, option_a, option_b, option_c, option_d, correct_option')
-    .eq('exam_id', examId)
-    .order('id', { ascending: true });
-
-  if (error) throw error;
+  const data = questionsRes.data;
 
   if (role !== 'admin') {
     // Mask correct options for student users, but keep a placeholder value 
