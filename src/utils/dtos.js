@@ -110,6 +110,7 @@ const mapProfileToDTO = (p) => {
     full_name: p.full_name,
     email: p.email,
     role: p.role,
+    phone: p.phone,
     created_at: p.created_at
   };
 };
