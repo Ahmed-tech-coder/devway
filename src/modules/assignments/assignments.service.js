@@ -963,10 +963,15 @@ const saveOrSubmitSubmission = async (assignmentId, userId, textAnswer, files = 
   }
 
   // Update submission record status
+  let parentStatus = finalStatus;
+  if (!isFinalSubmit && sub.status !== 'draft') {
+    parentStatus = sub.status;
+  }
+
   const { error: subUpdErr } = await supabase
     .from('assignment_submissions')
     .update({
-      status: finalStatus,
+      status: parentStatus,
       updated_at: now.toISOString()
     })
     .eq('id', sub.id);
