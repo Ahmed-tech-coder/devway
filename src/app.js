@@ -22,7 +22,7 @@ app.use(cors());
 
 // Secure HTTP headers
 app.use(helmet({
-  contentSecurityPolicy: false // Disable CSP if loading resource content from CDNs or local ports
+  contentSecurityPolicy: false 
 }));
 
 // Gzip/Brotli connection response compression

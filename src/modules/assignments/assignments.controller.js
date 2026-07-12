@@ -430,31 +430,6 @@ const markNotificationsRead = async (req, res) => {
   }
 };
 
-const recordViolation = async (req, res) => {
-  try {
-    const { id: assignmentId } = req.params;
-    const userId = req.user.id;
-    const { reason } = req.body;
-
-    const result = await assignmentsService.recordAssignmentViolation(assignmentId, userId, reason || 'Tab switch / blur');
-    return res.status(200).json({ success: true, data: result });
-  } catch (err) {
-    return handleError(res, err);
-  }
-};
-
-const getViolationCount = async (req, res) => {
-  try {
-    const { id: assignmentId } = req.params;
-    const userId = req.user.id;
-
-    const result = await assignmentsService.getAssignmentViolation(assignmentId, userId);
-    return res.status(200).json({ success: true, data: result });
-  } catch (err) {
-    return handleError(res, err);
-  }
-};
-
 module.exports = {
   // Templates
   getAllTemplates,
@@ -482,8 +457,6 @@ module.exports = {
   finalizeSubmission,
   removeSubmissionFile,
   gradeSubmission,
-  recordViolation,
-  getViolationCount,
   returnSubmission,
 
   // Comments

@@ -121,38 +121,6 @@ const getResults = async (req, res, next) => {
 };
 
 /**
- * Record violation for exam (All authenticated users)
- */
-const recordViolation = async (req, res, next) => {
-  try {
-    const { id: examId } = req.params;
-    const userId = req.user.id;
-    const { reason } = req.body;
-
-    const result = await examsService.recordExamViolation(examId, userId, reason || 'Tab switch / blur');
-    return res.status(200).json(result);
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * Get current violation count for exam
- */
-const getViolationCount = async (req, res, next) => {
-  try {
-    const { id: examId } = req.params;
-    const userId = req.user.id;
-
-    const result = await examsService.getExamViolation(examId, userId);
-    return res.status(200).json(result);
-  } catch (error) {
-    next(error);
-  }
-};
-
-
-/**
  * Get exam review and results for the logged-in student
  */
 const getExamReview = async (req, res, next) => {
@@ -175,7 +143,5 @@ module.exports = {
   deleteExam,
   submitExam,
   getResults,
-  recordViolation,
-  getViolationCount,
   getExamReview
 };

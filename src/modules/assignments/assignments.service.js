@@ -1380,91 +1380,6 @@ const triggerNotificationsForSubmission = async (submission, isLate) => {
   }
 };
 
-/**
- * Record a tab-switching or copy violation for an assignment
- */
-const recordAssignmentViolation = async (assignmentId, userId, reason) => {
-  // 1. Fetch assignment config to know max violations limit
-  const { data: assignment, error: assignErr } = await supabase
-    .from('assignments')
-    .select('*')
-    .eq('id', assignmentId)
-    .maybeSingle();
-
-  if (assignErr) throw assignErr;
-
-  // 2. Fetch or create submission
-  let { data: sub } = await supabase
-    .from('assignment_submissions')
-    .select('*')
-    .eq('assignment_id', assignmentId)
-    .eq('user_id', userId)
-    .maybeSingle();
-
-  if (!sub) {
-    const { data: newSub, error: insErr } = await supabase
-      .from('assignment_submissions')
-      .insert({
-        assignment_id: assignmentId,
-        user_id: userId,
-        status: 'draft'
-      })
-      .select('*')
-      .single();
-
-    if (insErr) throw insErr;
-    sub = newSub;
-  }
-
-  const count = (sub.violations_count || 0) + 1;
-  const log = Array.isArray(sub.violations_log) ? sub.violations_log : [];
-  log.push({ timestamp: new Date().toISOString(), reason });
-
-  // Update DB. Wrap in try-catch in case columns are missing
-  try {
-    await supabase
-      .from('assignment_submissions')
-      .update({
-        violations_count: count,
-        violations_log: log
-      })
-      .eq('id', sub.id);
-  } catch (dbErr) {
-    console.warn('[Violation DB Log Warning] Fallback triggered as table columns violations_count/violations_log may be missing:', dbErr.message);
-  }
-
-  return { 
-    count, 
-    log,
-    max_violations: assignment?.max_violations !== undefined ? assignment.max_violations : 3 
-  };
-};
-
-/**
- * Get current violation count and configuration for an assignment
- */
-const getAssignmentViolation = async (assignmentId, userId) => {
-  const { data: assignment, error: assignErr } = await supabase
-    .from('assignments')
-    .select('*')
-    .eq('id', assignmentId)
-    .maybeSingle();
-
-  if (assignErr) throw assignErr;
-
-  const { data: sub } = await supabase
-    .from('assignment_submissions')
-    .select('*')
-    .eq('assignment_id', assignmentId)
-    .eq('user_id', userId)
-    .maybeSingle();
-
-  return {
-    count: sub?.violations_count || 0,
-    max_violations: assignment?.max_violations !== undefined ? assignment.max_violations : 3
-  };
-};
-
 module.exports = {
   // Templates
   getAllTemplates,
@@ -1507,9 +1422,5 @@ module.exports = {
   markNotificationsAsRead,
 
   // Scheduler
-  runSchedulerSync,
-
-  // Violation recorder
-  recordAssignmentViolation,
-  getAssignmentViolation
+  runSchedulerSync
 };

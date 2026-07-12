@@ -304,110 +304,6 @@ const getExamResults = async (examId) => {
   }));
 };
 
-/**
- * Record a tab-switching or copy violation for an exam
- */
-const recordExamViolation = async (examId, userId, reason) => {
-  // 1. Fetch exam configuration to know max violations limit
-  const { data: exam, error: examErr } = await supabase
-    .from('exams')
-    .select('*')
-    .eq('id', examId)
-    .maybeSingle();
-
-  if (examErr) throw examErr;
-
-  // 2. Fetch or create the exam result draft
-  let { data: result, error: resultErr } = await supabase
-    .from('exam_results')
-    .select('*')
-    .eq('exam_id', examId)
-    .eq('user_id', userId)
-    .maybeSingle();
-
-  if (resultErr) {
-    // Fallback if we cannot select or table is missing
-    return {
-      count: 1,
-      log: [{ timestamp: new Date().toISOString(), reason }],
-      max_violations: exam?.max_violations !== undefined ? exam.max_violations : 3
-    };
-  }
-
-  if (!result) {
-    const { data: newRes, error: insErr } = await supabase
-      .from('exam_results')
-      .insert({
-        exam_id: examId,
-        user_id: userId,
-        score: null,
-        total_marks: null,
-        percentage: null,
-        submitted_at: null
-      })
-      .select('*')
-      .single();
-
-    if (insErr) throw insErr;
-    result = newRes;
-  }
-
-  const count = (result.violations_count || 0) + 1;
-  const log = Array.isArray(result.violations_log) ? result.violations_log : [];
-  log.push({ timestamp: new Date().toISOString(), reason });
-
-  // Update DB. Wrap in try-catch in case columns are missing
-  try {
-    await supabase
-      .from('exam_results')
-      .update({
-        violations_count: count,
-        violations_log: log
-      })
-      .eq('id', result.id);
-  } catch (dbErr) {
-    console.warn('[Violation DB Log Warning] Fallback triggered as table columns violations_count/violations_log may be missing:', dbErr.message);
-  }
-
-  return { 
-    count, 
-    log,
-    max_violations: exam?.max_violations !== undefined ? exam.max_violations : 3 
-  };
-};
-
-/**
- * Get current violation count and configuration for an exam
- */
-const getExamViolation = async (examId, userId) => {
-  const { data: exam, error: examErr } = await supabase
-    .from('exams')
-    .select('*')
-    .eq('id', examId)
-    .maybeSingle();
-
-  if (examErr) throw examErr;
-
-  const { data: result, error: resultErr } = await supabase
-    .from('exam_results')
-    .select('*')
-    .eq('exam_id', examId)
-    .eq('user_id', userId)
-    .maybeSingle();
-
-  if (resultErr) {
-    return {
-      count: 0,
-      max_violations: exam?.max_violations !== undefined ? exam.max_violations : 3
-    };
-  }
-
-  return {
-    count: result?.violations_count || 0,
-    max_violations: exam?.max_violations !== undefined ? exam.max_violations : 3
-  };
-};
-
 
 /**
  * Retrieve user's exam results and mapped questions with their answers/correct options
@@ -506,7 +402,5 @@ module.exports = {
   deleteExam,
   submitExamResult,
   getExamResults,
-  recordExamViolation,
-  getExamViolation,
   getExamReviewForUser
 };

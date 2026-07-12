@@ -5,6 +5,9 @@ const { auth, authorize } = require('../../middleware/auth');
 
 const router = express.Router();
 
+// Get dashboard stats for the authenticated user
+router.get('/dashboard-stats', auth, profilesController.getDashboardStats);
+
 // Get list of users (Admin only)
 router.get('/', auth, authorize('admin'), profilesController.getProfiles);
 

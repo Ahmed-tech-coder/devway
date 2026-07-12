@@ -49,7 +49,25 @@ const deleteProfile = async (req, res, next) => {
   }
 };
 
+/**
+ * Get dashboard statistics for the authenticated user
+ */
+const getDashboardStats = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const stats = await profilesService.getDashboardStats(userId);
+    
+    return res.status(200).json({
+      success: true,
+      data: stats
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getProfiles,
-  deleteProfile
+  deleteProfile,
+  getDashboardStats
 };
