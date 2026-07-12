@@ -223,9 +223,6 @@ const duplicateTemplate = async (id, creatorId) => {
 // =========================================================================
 
 const getAllAssignments = async (role, userId = null) => {
-  // Trigger automatic scheduled publisher/closer sync on load
-  await runSchedulerSync();
-
   let query = supabase
     .from('assignments')
     .select(`
@@ -319,15 +316,33 @@ const getDeletedAssignments = async () => {
 };
 
 const getAssignmentById = async (id, role = 'admin', userId = null) => {
-  await runSchedulerSync();
+  const [assignRes, filesRes, versionsRes] = await Promise.all([
+    supabase
+      .from('assignments')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle(),
+    supabase
+      .from('assignment_files')
+      .select('*')
+      .eq('assignment_id', id),
+    role === 'admin'
+      ? supabase
+          .from('assignment_versions')
+          .select(`
+            *,
+            profiles:editor_id (full_name)
+          `)
+          .eq('assignment_id', id)
+          .order('created_at', { ascending: false })
+      : Promise.resolve({ data: [] })
+  ]);
 
-  const { data: assignment, error: assignErr } = await supabase
-    .from('assignments')
-    .select('*')
-    .eq('id', id)
-    .maybeSingle();
+  if (assignRes.error) throw assignRes.error;
+  if (filesRes.error) throw filesRes.error;
+  if (versionsRes.error) throw versionsRes.error;
 
-  if (assignErr) throw assignErr;
+  const assignment = assignRes.data;
   if (!assignment) return null;
 
   // Prevent student from accessing draft/scheduled assignments
@@ -335,27 +350,8 @@ const getAssignmentById = async (id, role = 'admin', userId = null) => {
     return null;
   }
 
-  // Get reference files
-  const { data: files, error: filesErr } = await supabase
-    .from('assignment_files')
-    .select('*')
-    .eq('assignment_id', id);
-
-  if (filesErr) throw filesErr;
-
-  // Get version history for teachers
-  let versions = [];
-  if (role === 'admin') {
-    const { data: verData } = await supabase
-      .from('assignment_versions')
-      .select(`
-        *,
-        profiles:editor_id (full_name)
-      `)
-      .eq('assignment_id', id)
-      .order('created_at', { ascending: false });
-    versions = verData || [];
-  }
+  const files = filesRes.data;
+  const versions = versionsRes.data || [];
 
   return {
     ...assignment,
@@ -1127,12 +1123,20 @@ const createComment = async (submissionId, userId, text, parentCommentId = null)
 // =========================================================================
 
 const getDashboardStats = async (role, userId = null) => {
-  await runSchedulerSync();
-
   if (role === 'admin') {
-    const { data: all } = await supabase.from('assignments').select('status').is('deleted_at', null);
-    const { data: subs } = await supabase.from('assignment_submissions').select('status, grade');
-    const { data: profiles } = await supabase.from('profiles').select('id').eq('role', 'user');
+    const [allRes, subsRes, profilesRes] = await Promise.all([
+      supabase.from('assignments').select('status').is('deleted_at', null),
+      supabase.from('assignment_submissions').select('status, grade'),
+      supabase.from('profiles').select('id').eq('role', 'user')
+    ]);
+
+    if (allRes.error) throw allRes.error;
+    if (subsRes.error) throw subsRes.error;
+    if (profilesRes.error) throw profilesRes.error;
+
+    const all = allRes.data;
+    const subs = subsRes.data;
+    const profiles = profilesRes.data;
 
     const total = all?.length || 0;
     const drafts = all?.filter(a => a.status === 'draft').length || 0;
@@ -1163,16 +1167,23 @@ const getDashboardStats = async (role, userId = null) => {
     };
   } else {
     // Student Dashboard Stats
-    const { data: allPub } = await supabase
-      .from('assignments')
-      .select('id, deadline, max_grade')
-      .in('status', ['published', 'closed'])
-      .is('deleted_at', null);
+    const [allPubRes, userSubsRes] = await Promise.all([
+      supabase
+        .from('assignments')
+        .select('id, deadline, max_grade')
+        .in('status', ['published', 'closed'])
+        .is('deleted_at', null),
+      supabase
+        .from('assignment_submissions')
+        .select('assignment_id, status, grade')
+        .eq('user_id', userId)
+    ]);
 
-    const { data: userSubs } = await supabase
-      .from('assignment_submissions')
-      .select('assignment_id, status, grade')
-      .eq('user_id', userId);
+    if (allPubRes.error) throw allPubRes.error;
+    if (userSubsRes.error) throw userSubsRes.error;
+
+    const allPub = allPubRes.data;
+    const userSubs = userSubsRes.data;
 
     const subMap = new Map();
     userSubs?.forEach(s => subMap.set(s.assignment_id, s));
