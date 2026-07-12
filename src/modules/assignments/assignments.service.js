@@ -316,7 +316,7 @@ const getDeletedAssignments = async () => {
 };
 
 const getAssignmentById = async (id, role = 'admin', userId = null) => {
-  const [assignRes, filesRes, versionsRes] = await Promise.all([
+  const [assignRes, filesRes, versionsRes, subRes] = await Promise.all([
     supabase
       .from('assignments')
       .select('*')
@@ -335,12 +335,21 @@ const getAssignmentById = async (id, role = 'admin', userId = null) => {
           `)
           .eq('assignment_id', id)
           .order('created_at', { ascending: false })
-      : Promise.resolve({ data: [] })
+      : Promise.resolve({ data: [] }),
+    role !== 'admin' && userId
+      ? supabase
+          .from('assignment_submissions')
+          .select('id, assignment_id, status, grade')
+          .eq('assignment_id', id)
+          .eq('user_id', userId)
+          .maybeSingle()
+      : Promise.resolve({ data: null })
   ]);
 
   if (assignRes.error) throw assignRes.error;
   if (filesRes.error) throw filesRes.error;
   if (versionsRes.error) throw versionsRes.error;
+  if (subRes.error) throw subRes.error;
 
   const assignment = assignRes.data;
   if (!assignment) return null;
@@ -352,11 +361,13 @@ const getAssignmentById = async (id, role = 'admin', userId = null) => {
 
   const files = filesRes.data;
   const versions = versionsRes.data || [];
+  const submission = subRes.data || null;
 
   return {
     ...assignment,
     files: files || [],
     versions,
+    submission,
     rubrics: typeof assignment.rubrics === 'string' ? JSON.parse(assignment.rubrics) : assignment.rubrics,
     resources: typeof assignment.resources === 'string' ? JSON.parse(assignment.resources) : assignment.resources
   };
