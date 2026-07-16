@@ -660,7 +660,7 @@ const permanentDeleteAssignment = async (id) => {
 // =========================================================================
 
 const getSubmissionDetails = async (assignmentId, studentId) => {
-  const { data: sub, error: subErr } = await supabase
+  let { data: sub, error: subErr } = await supabase
     .from('assignment_submissions')
     .select(`
       *,
@@ -672,6 +672,29 @@ const getSubmissionDetails = async (assignmentId, studentId) => {
 
   if (subErr) throw subErr;
   if (!sub) return null;
+
+  const { data: assignment } = await supabase
+    .from('assignments')
+    .select('deadline, allow_late_submission')
+    .eq('id', assignmentId)
+    .maybeSingle();
+
+  if (assignment) {
+    const autoFinalized = await finalizeExpiredDraftSubmission(sub, assignment);
+    if (autoFinalized) {
+      const { data: refreshedSub } = await supabase
+        .from('assignment_submissions')
+        .select(`
+          *,
+          profiles:user_id (full_name, email)
+        `)
+        .eq('assignment_id', assignmentId)
+        .eq('user_id', studentId)
+        .maybeSingle();
+
+      if (refreshedSub) sub = refreshedSub;
+    }
+  }
 
   // Fetch attempts history
   const { data: attempts, error: attErr } = await supabase
@@ -703,7 +726,7 @@ const getSubmissionDetails = async (assignmentId, studentId) => {
 };
 
 const getSubmissionById = async (submissionId) => {
-  const { data: sub, error } = await supabase
+  let { data: sub, error } = await supabase
     .from('assignment_submissions')
     .select(`
       *,
@@ -715,6 +738,29 @@ const getSubmissionById = async (submissionId) => {
 
   if (error) throw error;
   if (!sub) return null;
+
+  const { data: assignment } = await supabase
+    .from('assignments')
+    .select('deadline, allow_late_submission')
+    .eq('id', sub.assignment_id)
+    .maybeSingle();
+
+  if (assignment) {
+    const autoFinalized = await finalizeExpiredDraftSubmission(sub, assignment);
+    if (autoFinalized) {
+      const { data: refreshedSub } = await supabase
+        .from('assignment_submissions')
+        .select(`
+          *,
+          profiles:user_id (full_name, email),
+          assignments (*)
+        `)
+        .eq('id', submissionId)
+        .maybeSingle();
+
+      if (refreshedSub) sub = refreshedSub;
+    }
+  }
 
   const { data: attempts } = await supabase
     .from('assignment_submission_attempts')
@@ -764,12 +810,73 @@ const getSubmissionsForAssignment = async (assignmentId) => {
   return enriched;
 };
 
+const finalizeExpiredDraftSubmission = async (submission, assignment) => {
+  if (!submission || !assignment) return false;
+
+  const now = new Date();
+  const deadlineDate = new Date(assignment.deadline);
+
+  if (assignment.allow_late_submission || now <= deadlineDate) {
+    return false;
+  }
+
+  const { data: attempts, error: attemptsErr } = await supabase
+    .from('assignment_submission_attempts')
+    .select('*')
+    .eq('submission_id', submission.id)
+    .order('attempt_number', { ascending: false });
+
+  if (attemptsErr) throw attemptsErr;
+
+  const draftAttempt = attempts?.find((attempt) => attempt.status === 'draft');
+  if (!draftAttempt) return false;
+
+  const { data: files } = await supabase
+    .from('assignment_submission_files')
+    .select('id')
+    .eq('attempt_id', draftAttempt.id);
+
+  const hasContent = (draftAttempt.text_answer || '').trim().length > 0 || (files && files.length > 0);
+  if (!hasContent) return false;
+
+  const { error: attemptErr } = await supabase
+    .from('assignment_submission_attempts')
+    .update({
+      status: 'late',
+      submitted_at: now.toISOString()
+    })
+    .eq('id', draftAttempt.id);
+
+  if (attemptErr) throw attemptErr;
+
+  const { error: subErr } = await supabase
+    .from('assignment_submissions')
+    .update({
+      status: 'late',
+      updated_at: now.toISOString()
+    })
+    .eq('id', submission.id);
+
+  if (subErr) throw subErr;
+
+  return true;
+};
+
 const saveOrSubmitSubmission = async (assignmentId, userId, textAnswer, files = [], isFinalSubmit = false) => {
   const assignment = await getAssignmentById(assignmentId, 'user');
   if (!assignment) throw new Error('الواجب المطلوب غير موجود');
 
   const now = new Date();
   const deadlineDate = new Date(assignment.deadline);
+  const hasSubmissionContent = (textAnswer || '').trim().length > 0 || (files && files.length > 0);
+
+  if (isFinalSubmit && !hasSubmissionContent) {
+    throw new Error('يرجى كتابة إجابة أو رفع ملف واحد على الأقل قبل التسليم.');
+  }
+
+  if (!isFinalSubmit && !hasSubmissionContent) {
+    throw new Error('يرجى كتابة إجابة أو رفع ملف أولاً لحفظ المسودة.');
+  }
 
   // Check deadline locking logic
   if (!assignment.allow_late_submission && now > deadlineDate && isFinalSubmit) {

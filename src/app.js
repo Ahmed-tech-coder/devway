@@ -51,7 +51,6 @@ app.use('/api/profiles', profilesRoutes);
 app.use('/api/exams', examsRoutes);
 app.use('/api', questionsRoutes); // Handles /api/questions and nested routes
 app.use('/api/attachments', attachmentsRoutes);
-app.use('/api/v1/assignments', assignmentsRoutes);
 app.use('/api/assignments', assignmentsRoutes);
 
 // Catch-all for unhandled routes
