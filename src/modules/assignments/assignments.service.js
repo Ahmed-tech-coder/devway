@@ -878,11 +878,6 @@ const saveOrSubmitSubmission = async (assignmentId, userId, textAnswer, files = 
     throw new Error('يرجى كتابة إجابة أو رفع ملف أولاً لحفظ المسودة.');
   }
 
-  // Check deadline locking logic
-  if (!assignment.allow_late_submission && now > deadlineDate && isFinalSubmit) {
-    throw new Error('الواجب مغلق حالياً. لا يمكنك تقديم إجابة بعد تاريخ الغلق.');
-  }
-
   // 1. Get or Create core submission record
   let { data: sub } = await supabase
     .from('assignment_submissions')
@@ -904,6 +899,13 @@ const saveOrSubmitSubmission = async (assignmentId, userId, textAnswer, files = 
 
     if (error) throw error;
     sub = newSub;
+  }
+
+  const canSubmitAfterDeadline = assignment.allow_late_submission || sub?.status === 'returned';
+
+  // Check deadline locking logic
+  if (!canSubmitAfterDeadline && now > deadlineDate && isFinalSubmit) {
+    throw new Error('الواجب مغلق حالياً. لا يمكنك تقديم إجابة بعد تاريخ الغلق.');
   }
 
   // Check locks for finalized submissions
