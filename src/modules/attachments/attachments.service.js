@@ -1,6 +1,44 @@
 // src/modules/attachments/attachments.service.js
 const supabase = require('../../config/supabase');
 
+const getSessionSortValue = (sessionNumber) => {
+  if (sessionNumber === null || sessionNumber === undefined) {
+    return Number.MAX_SAFE_INTEGER;
+  }
+
+  const normalized = String(sessionNumber).trim();
+  if (!normalized) {
+    return Number.MAX_SAFE_INTEGER;
+  }
+
+  const match = normalized.match(/(\d+)/);
+  if (!match) {
+    return Number.MAX_SAFE_INTEGER - 1;
+  }
+
+  return Number.parseInt(match[1], 10);
+};
+
+const sortAttachmentsBySession = (attachments) =>
+  [...attachments].sort((a, b) => {
+    const aValue = getSessionSortValue(a.sessionNumber);
+    const bValue = getSessionSortValue(b.sessionNumber);
+
+    if (aValue !== bValue) {
+      return aValue - bValue;
+    }
+
+    const titleComparison = (a.title || '').localeCompare(b.title || '', 'ar', {
+      sensitivity: 'base'
+    });
+
+    if (titleComparison !== 0) {
+      return titleComparison;
+    }
+
+    return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
+  });
+
 /**
  * Get all course attachments
  * @returns {Promise<Array>}
@@ -13,7 +51,7 @@ const getAllAttachments = async () => {
 
   if (error) throw error;
 
-  return (data || []).map((row) => ({
+  const mappedAttachments = (data || []).map((row) => ({
     id: row.id,
     title: row.title,
     description: row.description,
@@ -24,6 +62,8 @@ const getAllAttachments = async () => {
     links: row.links || [],
     created_at: row.created_at
   }));
+
+  return sortAttachmentsBySession(mappedAttachments);
 };
 
 /**

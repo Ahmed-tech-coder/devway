@@ -245,6 +245,8 @@ const getAllAssignments = async (role, userId = null) => {
   const { data: assignments, error } = await query;
   if (error) throw error;
 
+  if (!assignments || assignments.length === 0) return [];
+
   // Enhance assignments list using optimized batching to prevent N+1 query loop
   const result = [];
   if (role === 'admin') {
@@ -800,14 +802,52 @@ const getSubmissionsForAssignment = async (assignmentId) => {
 
   if (error) throw error;
 
-  // Enrich with latest attempts info
-  const enriched = [];
-  for (const sub of subs) {
-    const details = await getSubmissionDetails(assignmentId, sub.user_id);
-    enriched.push(details);
-  }
+  if (!subs || subs.length === 0) return [];
 
-  return enriched;
+  const submissionIds = subs.map((sub) => sub.id);
+
+  const [{ data: attemptsData }, { data: filesData }] = await Promise.all([
+    supabase
+      .from('assignment_submission_attempts')
+      .select('*')
+      .in('submission_id', submissionIds)
+      .order('submission_id', { ascending: true })
+      .order('attempt_number', { ascending: false }),
+    supabase
+      .from('assignment_submission_files')
+      .select('*')
+  ]);
+
+  const attemptsBySubmission = new Map();
+  (attemptsData || []).forEach((attempt) => {
+    if (!attemptsBySubmission.has(attempt.submission_id)) {
+      attemptsBySubmission.set(attempt.submission_id, []);
+    }
+    attemptsBySubmission.get(attempt.submission_id).push(attempt);
+  });
+
+  const attemptIds = (attemptsData || []).map((attempt) => attempt.id);
+  const filesByAttempt = new Map();
+  (filesData || [])
+    .filter((file) => attemptIds.includes(file.attempt_id))
+    .forEach((file) => {
+      if (!filesByAttempt.has(file.attempt_id)) {
+        filesByAttempt.set(file.attempt_id, []);
+      }
+      filesByAttempt.get(file.attempt_id).push(file);
+    });
+
+  return subs.map((sub) => {
+    const attempts = (attemptsBySubmission.get(sub.id) || []).map((attempt) => ({
+      ...attempt,
+      files: filesByAttempt.get(attempt.id) || []
+    }));
+
+    return {
+      ...sub,
+      attempts
+    };
+  });
 };
 
 const finalizeExpiredDraftSubmission = async (submission, assignment) => {
