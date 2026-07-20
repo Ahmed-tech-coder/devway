@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS assignment_files (
   stored_name   VARCHAR(255) NOT NULL,
   mime_type     VARCHAR(100),
   extension     VARCHAR(20),
+  file_type     VARCHAR(20) DEFAULT 'document',
   size          INT,
   url           TEXT NOT NULL,
   uploaded_at   TIMESTAMPTZ DEFAULT NOW()
@@ -112,6 +113,7 @@ CREATE TABLE IF NOT EXISTS assignment_submission_files (
   stored_name   VARCHAR(255) NOT NULL,
   mime_type     VARCHAR(100),
   extension     VARCHAR(20),
+  file_type     VARCHAR(20) DEFAULT 'document',
   size          INT,
   url           TEXT NOT NULL,
   uploaded_at   TIMESTAMPTZ DEFAULT NOW()

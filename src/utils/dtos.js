@@ -55,7 +55,8 @@ const mapAssignmentDetailsToDTO = (a) => {
       original_name: f.original_name,
       size: f.size,
       url: f.url,
-      extension: f.extension
+      extension: f.extension,
+      file_type: f.file_type || 'document'
     })) : [],
     submission: a.submission || null,
     submissions: a.submissions || null

@@ -317,6 +317,18 @@ const getDeletedAssignments = async () => {
   return data || [];
 };
 
+const resolveFileType = (file) => {
+  const mimeType = (file?.mimetype || '').toLowerCase();
+  if (mimeType.startsWith('image/')) return 'image';
+
+  const extension = (file?.originalname || '')
+    .split('.')
+    .pop()
+    ?.toLowerCase();
+
+  return ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'].includes(extension || '') ? 'image' : 'document';
+};
+
 const getAssignmentById = async (id, role = 'admin', userId = null) => {
   const [assignRes, filesRes, versionsRes, subRes] = await Promise.all([
     supabase
@@ -327,7 +339,8 @@ const getAssignmentById = async (id, role = 'admin', userId = null) => {
     supabase
       .from('assignment_files')
       .select('*')
-      .eq('assignment_id', id),
+      .eq('assignment_id', id)
+      .order('uploaded_at', { ascending: true }),
     role === 'admin'
       ? supabase
           .from('assignment_versions')
@@ -434,6 +447,7 @@ const createAssignment = async (assignmentData, files = [], creatorId) => {
         stored_name: uploadResult.path,
         mime_type: file.mimetype,
         extension: ext,
+        file_type: resolveFileType(file),
         size: file.size,
         url: uploadResult.publicUrl
       });
@@ -553,6 +567,7 @@ const updateAssignment = async (id, assignmentData, files = [], editorId) => {
         stored_name: uploadResult.path,
         mime_type: file.mimetype,
         extension: ext,
+        file_type: resolveFileType(file),
         size: file.size,
         url: uploadResult.publicUrl
       });
