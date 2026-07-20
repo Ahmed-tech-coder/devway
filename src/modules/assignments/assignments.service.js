@@ -331,16 +331,17 @@ const resolveFileType = (file) => {
 };
 
 const getAssignmentById = async (id, role = 'admin', userId = null) => {
+  const numericId = parseInt(id, 10);
   const [assignRes, filesRes, versionsRes, subRes] = await Promise.all([
     supabase
       .from('assignments')
       .select('*')
-      .eq('id', id)
+      .eq('id', numericId)
       .maybeSingle(),
     supabase
       .from('assignment_files')
       .select('*')
-      .eq('assignment_id', id)
+      .eq('assignment_id', numericId)
       .order('uploaded_at', { ascending: true }),
     role === 'admin'
       ? supabase
@@ -349,14 +350,14 @@ const getAssignmentById = async (id, role = 'admin', userId = null) => {
             *,
             profiles:editor_id (full_name)
           `)
-          .eq('assignment_id', id)
+          .eq('assignment_id', numericId)
           .order('created_at', { ascending: false })
       : Promise.resolve({ data: [] }),
     role !== 'admin' && userId
       ? supabase
           .from('assignment_submissions')
           .select('id, assignment_id, status, grade')
-          .eq('assignment_id', id)
+          .eq('assignment_id', numericId)
           .eq('user_id', userId)
           .maybeSingle()
       : Promise.resolve({ data: null })
@@ -464,7 +465,8 @@ const createAssignment = async (assignmentData, files = [], creatorId) => {
 };
 
 const updateAssignment = async (id, assignmentData, files = [], editorId) => {
-  const current = await getAssignmentById(id, 'admin');
+  const numericId = parseInt(id, 10);
+  const current = await getAssignmentById(numericId, 'admin');
   if (!current) throw new Error('الواجب المطلوب غير موجود للتعديل');
 
   const {
@@ -520,7 +522,7 @@ const updateAssignment = async (id, assignmentData, files = [], editorId) => {
       version: current.version + 1,
       updated_at: new Date().toISOString()
     })
-    .eq('id', id)
+    .eq('id', numericId)
     .select('*')
     .single();
 
@@ -529,7 +531,7 @@ const updateAssignment = async (id, assignmentData, files = [], editorId) => {
   // Save changes to audit log if differences exist
   if (Object.keys(diff).length > 0) {
     await supabase.from('assignment_versions').insert({
-      assignment_id: id,
+      assignment_id: numericId,
       version_number: current.version,
       changed_fields: diff,
       editor_id: editorId
@@ -563,7 +565,7 @@ const updateAssignment = async (id, assignmentData, files = [], editorId) => {
       const uploadResult = await storageService.uploadFile('attachments', file);
       const ext = (file.originalname.split('.').pop() || '').toLowerCase();
       await supabase.from('assignment_files').insert({
-        assignment_id: id,
+        assignment_id: numericId,
         original_name: file.originalname,
         stored_name: uploadResult.path,
         mime_type: file.mimetype,
@@ -580,7 +582,7 @@ const updateAssignment = async (id, assignmentData, files = [], editorId) => {
     await triggerNotificationsForUpdatedAssignment(updated);
   }
 
-  return getAssignmentById(id);
+  return getAssignmentById(numericId);
 };
 
 const softDeleteAssignment = async (id) => {
