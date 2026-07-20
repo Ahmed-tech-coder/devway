@@ -226,7 +226,8 @@ const getAllAssignments = async (role, userId = null) => {
   let query = supabase
     .from('assignments')
     .select(`
-      *,
+      id, title, description, max_grade, deadline, due_time, publish_date, allow_late_submission,
+      max_attempts, allow_text, allow_file, allowed_extensions, max_upload_size, status, created_at, updated_at,
       profiles:created_by (full_name, email)
     `)
     .order('created_at', { ascending: false });
@@ -821,17 +822,22 @@ const getSubmissionsForAssignment = async (assignmentId) => {
 
   const submissionIds = subs.map((sub) => sub.id);
 
-  const [{ data: attemptsData }, { data: filesData }] = await Promise.all([
-    supabase
-      .from('assignment_submission_attempts')
-      .select('*')
-      .in('submission_id', submissionIds)
-      .order('submission_id', { ascending: true })
-      .order('attempt_number', { ascending: false }),
-    supabase
+  const { data: attemptsData } = await supabase
+    .from('assignment_submission_attempts')
+    .select('*')
+    .in('submission_id', submissionIds)
+    .order('submission_id', { ascending: true })
+    .order('attempt_number', { ascending: false });
+
+  const attemptIds = (attemptsData || []).map((attempt) => attempt.id);
+  let filesData = [];
+  if (attemptIds.length > 0) {
+    const { data: fData } = await supabase
       .from('assignment_submission_files')
       .select('*')
-  ]);
+      .in('attempt_id', attemptIds);
+    filesData = fData || [];
+  }
 
   const attemptsBySubmission = new Map();
   (attemptsData || []).forEach((attempt) => {
@@ -841,16 +847,13 @@ const getSubmissionsForAssignment = async (assignmentId) => {
     attemptsBySubmission.get(attempt.submission_id).push(attempt);
   });
 
-  const attemptIds = (attemptsData || []).map((attempt) => attempt.id);
   const filesByAttempt = new Map();
-  (filesData || [])
-    .filter((file) => attemptIds.includes(file.attempt_id))
-    .forEach((file) => {
-      if (!filesByAttempt.has(file.attempt_id)) {
-        filesByAttempt.set(file.attempt_id, []);
-      }
-      filesByAttempt.get(file.attempt_id).push(file);
-    });
+  (filesData || []).forEach((file) => {
+    if (!filesByAttempt.has(file.attempt_id)) {
+      filesByAttempt.set(file.attempt_id, []);
+    }
+    filesByAttempt.get(file.attempt_id).push(file);
+  });
 
   return subs.map((sub) => {
     const attempts = (attemptsBySubmission.get(sub.id) || []).map((attempt) => ({
@@ -1426,7 +1429,7 @@ const getDashboardStats = async (role, userId = null) => {
 // NOTIFICATIONS SERVICES
 // =========================================================================
 
-const createNotification = async (notifData) => {
+async function createNotification(notifData) {
   const { userId, title, message, type, referenceId } = notifData;
   const { data, error } = await supabase
     .from('notifications')
@@ -1442,9 +1445,9 @@ const createNotification = async (notifData) => {
 
   if (error) throw error;
   return data;
-};
+}
 
-const getUserNotifications = async (userId) => {
+async function getUserNotifications(userId) {
   const { data, error } = await supabase
     .from('notifications')
     .select('*')
@@ -1453,9 +1456,9 @@ const getUserNotifications = async (userId) => {
 
   if (error) throw error;
   return data || [];
-};
+}
 
-const markNotificationsAsRead = async (userId) => {
+async function markNotificationsAsRead(userId) {
   const { data, error } = await supabase
     .from('notifications')
     .update({ is_read: true })
@@ -1464,13 +1467,13 @@ const markNotificationsAsRead = async (userId) => {
 
   if (error) throw error;
   return data || [];
-};
+}
 
 // =========================================================================
 // SCHEDULER & AUTO SYNC SERVICES
 // =========================================================================
 
-const runSchedulerSync = async () => {
+async function runSchedulerSync() {
   const now = new Date().toISOString();
 
   // 1. Scheduled -> Published
@@ -1508,13 +1511,13 @@ const runSchedulerSync = async () => {
         .eq('id', item.id);
     }
   }
-};
+}
 
 // =========================================================================
 // NOTIFICATION TRIGGER UTILITIES
 // =========================================================================
 
-const triggerNotificationsForNewAssignment = async (assignment) => {
+async function triggerNotificationsForNewAssignment(assignment) {
   const { data: students } = await supabase
     .from('profiles')
     .select('id')
@@ -1531,9 +1534,9 @@ const triggerNotificationsForNewAssignment = async (assignment) => {
       });
     }
   }
-};
+}
 
-const triggerNotificationsForUpdatedAssignment = async (assignment) => {
+async function triggerNotificationsForUpdatedAssignment(assignment) {
   const { data: students } = await supabase
     .from('profiles')
     .select('id')
@@ -1550,9 +1553,9 @@ const triggerNotificationsForUpdatedAssignment = async (assignment) => {
       });
     }
   }
-};
+}
 
-const triggerNotificationsForSubmission = async (submission, isLate) => {
+async function triggerNotificationsForSubmission(submission, isLate) {
   // Find teachers / admins
   const { data: admins } = await supabase
     .from('profiles')
@@ -1570,7 +1573,7 @@ const triggerNotificationsForSubmission = async (submission, isLate) => {
       });
     }
   }
-};
+}
 
 module.exports = {
   // Templates
