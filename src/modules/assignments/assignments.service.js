@@ -968,7 +968,8 @@ const saveOrSubmitSubmission = async (assignmentId, userId, textAnswer, files = 
     attemptNumber = latestAttempt.attempt_number + 1;
   }
 
-  if (isFinalSubmit && attemptNumber > assignment.max_attempts) {
+  const allowsRevisionAfterReturn = isFinalSubmit && sub?.status === 'returned';
+  if (isFinalSubmit && !allowsRevisionAfterReturn && attemptNumber > assignment.max_attempts) {
     throw new Error('لقد تجاوزت الحد الأقصى للمحاولات المسموحة لهذا الواجب.');
   }
 
