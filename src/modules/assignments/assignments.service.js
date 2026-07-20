@@ -74,7 +74,7 @@ const createTemplate = async (templateData, files = [], creatorId) => {
     for (const file of files) {
       const uploadResult = await storageService.uploadFile('attachments', file);
       const ext = (file.originalname.split('.').pop() || '').toLowerCase();
-      await supabase.from('assignment_template_files').insert({
+      const { error: fErr } = await supabase.from('assignment_template_files').insert({
         template_id: template.id,
         original_name: file.originalname,
         stored_name: uploadResult.path,
@@ -83,6 +83,7 @@ const createTemplate = async (templateData, files = [], creatorId) => {
         size: file.size,
         url: uploadResult.publicUrl
       });
+      if (fErr) throw fErr;
     }
   }
 
@@ -443,7 +444,7 @@ const createAssignment = async (assignmentData, files = [], creatorId) => {
     for (const file of files) {
       const uploadResult = await storageService.uploadFile('attachments', file);
       const ext = (file.originalname.split('.').pop() || '').toLowerCase();
-      await supabase.from('assignment_files').insert({
+      const { error: fErr } = await supabase.from('assignment_files').insert({
         assignment_id: assignment.id,
         original_name: file.originalname,
         stored_name: uploadResult.path,
@@ -453,6 +454,7 @@ const createAssignment = async (assignmentData, files = [], creatorId) => {
         size: file.size,
         url: uploadResult.publicUrl
       });
+      if (fErr) throw fErr;
     }
   }
 
@@ -564,7 +566,7 @@ const updateAssignment = async (id, assignmentData, files = [], editorId) => {
     for (const file of files) {
       const uploadResult = await storageService.uploadFile('attachments', file);
       const ext = (file.originalname.split('.').pop() || '').toLowerCase();
-      await supabase.from('assignment_files').insert({
+      const { error: fErr } = await supabase.from('assignment_files').insert({
         assignment_id: numericId,
         original_name: file.originalname,
         stored_name: uploadResult.path,
@@ -574,6 +576,7 @@ const updateAssignment = async (id, assignmentData, files = [], editorId) => {
         size: file.size,
         url: uploadResult.publicUrl
       });
+      if (fErr) throw fErr;
     }
   }
 
@@ -1120,7 +1123,7 @@ const saveOrSubmitSubmission = async (assignmentId, userId, textAnswer, files = 
     for (const file of files) {
       const uploadResult = await storageService.uploadFile('attachments', file);
       const ext = (file.originalname.split('.').pop() || '').toLowerCase();
-      await supabase.from('assignment_submission_files').insert({
+      const { error: fErr } = await supabase.from('assignment_submission_files').insert({
         attempt_id: currentAttemptId,
         original_name: file.originalname,
         stored_name: uploadResult.path,
@@ -1129,6 +1132,7 @@ const saveOrSubmitSubmission = async (assignmentId, userId, textAnswer, files = 
         size: file.size,
         url: uploadResult.publicUrl
       });
+      if (fErr) throw fErr;
     }
   }
 
