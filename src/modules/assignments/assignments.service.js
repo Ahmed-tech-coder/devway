@@ -450,7 +450,6 @@ const createAssignment = async (assignmentData, files = [], creatorId) => {
         stored_name: uploadResult.path,
         mime_type: file.mimetype,
         extension: ext,
-        file_type: resolveFileType(file),
         size: file.size,
         url: uploadResult.publicUrl
       });
@@ -572,7 +571,6 @@ const updateAssignment = async (id, assignmentData, files = [], editorId) => {
         stored_name: uploadResult.path,
         mime_type: file.mimetype,
         extension: ext,
-        file_type: resolveFileType(file),
         size: file.size,
         url: uploadResult.publicUrl
       });

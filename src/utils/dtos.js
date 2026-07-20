@@ -31,14 +31,20 @@ const mapAssignmentToDTO = (a) => {
  */
 const mapAssignmentDetailsToDTO = (a) => {
   if (!a) return null;
-  const files = Array.isArray(a.files) ? a.files.map(f => ({
-    id: f.id,
-    original_name: f.original_name,
-    size: f.size,
-    url: f.url,
-    extension: f.extension,
-    file_type: f.file_type || 'document'
-  })) : [];
+  const files = Array.isArray(a.files) ? a.files.map(f => {
+    const ext = (f.extension || (f.original_name || '').split('.').pop() || '').toLowerCase();
+    const mime = (f.mime_type || '').toLowerCase();
+    const isImg = mime.startsWith('image/') || ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'].includes(ext);
+    const resolvedFileType = f.file_type || (isImg ? 'image' : 'document');
+    return {
+      id: f.id,
+      original_name: f.original_name,
+      size: f.size,
+      url: f.url,
+      extension: ext,
+      file_type: resolvedFileType
+    };
+  }) : [];
   return {
     id: a.id,
     title: a.title,
