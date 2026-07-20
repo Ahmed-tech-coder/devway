@@ -31,6 +31,14 @@ const mapAssignmentToDTO = (a) => {
  */
 const mapAssignmentDetailsToDTO = (a) => {
   if (!a) return null;
+  const files = Array.isArray(a.files) ? a.files.map(f => ({
+    id: f.id,
+    original_name: f.original_name,
+    size: f.size,
+    url: f.url,
+    extension: f.extension,
+    file_type: f.file_type || 'document'
+  })) : [];
   return {
     id: a.id,
     title: a.title,
@@ -50,14 +58,8 @@ const mapAssignmentDetailsToDTO = (a) => {
     rubrics: Array.isArray(a.rubrics) ? a.rubrics : [],
     created_at: a.created_at,
     updated_at: a.updated_at,
-    files: Array.isArray(a.files) ? a.files.map(f => ({
-      id: f.id,
-      original_name: f.original_name,
-      size: f.size,
-      url: f.url,
-      extension: f.extension,
-      file_type: f.file_type || 'document'
-    })) : [],
+    files: files,
+    images: files.filter(f => f.file_type === 'image'),
     submission: a.submission || null,
     submissions: a.submissions || null
   };
