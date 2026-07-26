@@ -8,6 +8,11 @@ const JWT_SECRET = process.env.JWT_SECRET || 'devway_access_secret_key_2026';
  * Middleware to authenticate requests using standard JWT
  */
 const auth = async (req, res, next) => {
+  // Always allow preflight OPTIONS requests without checking tokens
+  if (req.method === 'OPTIONS') {
+    return next();
+  }
+
   try {
     let token;
 
@@ -47,6 +52,11 @@ const auth = async (req, res, next) => {
  */
 const authorize = (...roles) => {
   return (req, res, next) => {
+    // Always allow preflight OPTIONS requests
+    if (req.method === 'OPTIONS') {
+      return next();
+    }
+
     if (!req.user || !roles.includes(req.user.role)) {
       return next(new AppError('غير مصرح لك بالوصول إلى هذه الصفحة', 403));
     }
