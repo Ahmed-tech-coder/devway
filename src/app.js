@@ -17,8 +17,14 @@ const assignmentsRoutes = require('./modules/assignments/assignments.routes');
 
 const app = express();
 
-// Enable CORS for all requests
-app.use(cors());
+// Enable CORS for all requests and preflight OPTIONS
+app.use(cors({
+  origin: true, // Allow requesting origin dynamically
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  credentials: true
+}));
+app.options('*', cors());
 
 // Secure HTTP headers
 app.use(helmet({
@@ -30,8 +36,8 @@ app.use(compression());
 
 // API Rate Limiting to prevent brute-force attacks
 const apiLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 15 minutes
-  max: 200, // Limit each IP to 200 requests per windowMs
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 300, // Limit each IP to 300 requests per windowMs
   message: {
     success: false,
     message: 'لقد تجاوزت الحد المسموح به من الطلبات. يرجى المحاولة لاحقاً بعد دقيقة.'
@@ -41,9 +47,9 @@ const apiLimiter = rateLimit({
 });
 app.use('/api/', apiLimiter);
 
-// Parse incoming JSON and URLencoded requests
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Parse incoming JSON and URLencoded requests with higher limits for submissions
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Mount module routes
 app.use('/api/auth', authRoutes);
