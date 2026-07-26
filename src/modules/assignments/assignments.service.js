@@ -1,6 +1,7 @@
 // src/modules/assignments/assignments.service.js
 const supabase = require('../../config/supabase');
 const storageService = require('../../services/storage.service');
+const AppError = require('../../utils/AppError');
 
 // =========================================================================
 // ASSIGNMENT TEMPLATES SERVICES
@@ -932,11 +933,11 @@ const saveOrSubmitSubmission = async (assignmentId, userId, textAnswer, files = 
   const hasSubmissionContent = (textAnswer || '').trim().length > 0 || (files && files.length > 0);
 
   if (isFinalSubmit && !hasSubmissionContent) {
-    throw new Error('يرجى كتابة إجابة أو رفع ملف واحد على الأقل قبل التسليم.');
+    throw new AppError('يرجى كتابة إجابة أو رفع ملف واحد على الأقل قبل التسليم.', 400);
   }
 
   if (!isFinalSubmit && !hasSubmissionContent) {
-    throw new Error('يرجى كتابة إجابة أو رفع ملف أولاً لحفظ المسودة.');
+    throw new AppError('يرجى كتابة إجابة أو رفع ملف أولاً لحفظ المسودة.', 400);
   }
 
   // 1. Get or Create core submission record
@@ -966,12 +967,12 @@ const saveOrSubmitSubmission = async (assignmentId, userId, textAnswer, files = 
 
   // Check deadline locking logic
   if (!canSubmitAfterDeadline && now > deadlineDate && isFinalSubmit) {
-    throw new Error('الواجب مغلق حالياً. لا يمكنك تقديم إجابة بعد تاريخ الغلق.');
+    throw new AppError('الواجب مغلق حالياً. لا يمكنك تقديم إجابة بعد تاريخ الغلق.', 400);
   }
 
   // Check locks for finalized submissions
   if (['graded', 'under_review'].includes(sub.status) && isFinalSubmit) {
-    throw new Error('لا يمكن تعديل التسليم بعد نقله للمراجعة أو وضع العلامات.');
+    throw new AppError('لا يمكن تعديل التسليم بعد نقله للمراجعة أو وضع العلامات.', 400);
   }
 
   // Get current attempts count
@@ -991,7 +992,7 @@ const saveOrSubmitSubmission = async (assignmentId, userId, textAnswer, files = 
 
   const allowsRevisionAfterReturn = isFinalSubmit && sub?.status === 'returned';
   if (isFinalSubmit && !allowsRevisionAfterReturn && attemptNumber > assignment.max_attempts) {
-    throw new Error('لقد تجاوزت الحد الأقصى للمحاولات المسموحة لهذا الواجب.');
+    throw new AppError('لقد تجاوزت الحد الأقصى للمحاولات المسموحة لهذا الواجب.', 400);
   }
 
   // 2. Insert or update the attempt record

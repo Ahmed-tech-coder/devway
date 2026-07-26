@@ -14,8 +14,12 @@ const {
 
 // Helper for error responses
 const handleError = (res, err) => {
-  console.error(err);
-  return res.status(err.status || 500).json({
+  console.error('Assignment Controller Error:', err);
+  const code = (typeof err.statusCode === 'number' && err.statusCode >= 100 && err.statusCode < 600)
+    ? err.statusCode
+    : ((typeof err.status === 'number' && err.status >= 100 && err.status < 600) ? err.status : 400);
+
+  return res.status(code).json({
     success: false,
     error: err.message || 'حدث خطأ غير متوقع في الخادم'
   });
