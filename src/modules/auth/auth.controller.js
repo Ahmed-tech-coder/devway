@@ -22,14 +22,10 @@ const generateTokens = (user) => {
       phone: user.phone 
     },
     JWT_SECRET,
-    { expiresIn: '15m' }
+    { expiresIn: '365d' }
   );
-  const refreshToken = jwt.sign(
-    { id: user.id },
-    JWT_REFRESH_SECRET,
-    { expiresIn: '7d' }
-  );
-  return { accessToken, refreshToken };
+  // Return accessToken as both token and refreshToken for backward compatibility
+  return { accessToken, refreshToken: accessToken };
 };
 
 /**
