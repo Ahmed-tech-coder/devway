@@ -24,7 +24,7 @@ const upload = multer({
   storage: storage,
   fileFilter: fileFilter,
   limits: {
-    fileSize: 500 * 1024 * 1024 // 500 MB maximum threshold (validated dynamically at the service layer)
+    fileSize: 500 * 1024 * 1024 
   }
 });
 

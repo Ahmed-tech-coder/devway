@@ -137,6 +137,9 @@ const getDashboardStats = async (userId) => {
   const attachments = attachmentsRes.data || [];
   const totalAttachments = attachments.length;
 
+  // Fetch Top 3 Performers
+  const topPerformers = await getTopPerformers();
+
   return {
     exams: {
       available: availableExams,
@@ -154,12 +157,65 @@ const getDashboardStats = async (userId) => {
     },
     attachments: {
       total: totalAttachments
-    }
+    },
+    topPerformers
   };
+};
+
+/**
+ * Retrieves the top 3 performing users
+ * @returns {Promise<Array>}
+ */
+const getTopPerformers = async () => {
+  const { data, error } = await supabase
+    .from('top_performers')
+    .select('rank, note, profile:profiles(id, full_name, email, phone)')
+    .order('rank', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching top performers:', error);
+    return [];
+  }
+  return data || [];
+};
+
+/**
+ * Updates the top 3 performing users (Admin access only)
+ * @param {Array<{rank: number, user_id: string, note?: string}>} items
+ * @returns {Promise<Array>}
+ */
+const updateTopPerformers = async (items) => {
+  // Delete current records and insert new ones
+  const { error: deleteError } = await supabase
+    .from('top_performers')
+    .delete()
+    .neq('rank', 0); // deletes all rows
+
+  if (deleteError) throw deleteError;
+
+  if (items && items.length > 0) {
+    const recordsToInsert = items.map(item => ({
+      rank: item.rank,
+      user_id: item.user_id,
+      note: item.note || ''
+    }));
+
+    const { data, error: insertError } = await supabase
+      .from('top_performers')
+      .insert(recordsToInsert)
+      .select('rank, note, profile:profiles(id, full_name, email, phone)');
+
+    if (insertError) throw insertError;
+    return data;
+  }
+
+  return [];
 };
 
 module.exports = {
   getAllUserProfiles,
   deleteProfile,
-  getDashboardStats
+  getDashboardStats,
+  getTopPerformers,
+  updateTopPerformers
 };

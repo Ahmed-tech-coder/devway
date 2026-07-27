@@ -66,8 +66,42 @@ const getDashboardStats = async (req, res, next) => {
   }
 };
 
+/**
+ * Get top 3 performers (public or authenticated)
+ */
+const getTopPerformers = async (req, res, next) => {
+  try {
+    const topPerformers = await profilesService.getTopPerformers();
+    return res.status(200).json({
+      success: true,
+      topPerformers
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Update top 3 performers (admin access only)
+ */
+const updateTopPerformers = async (req, res, next) => {
+  try {
+    const { items } = req.body; // array of { rank, user_id, note }
+    const updated = await profilesService.updateTopPerformers(items);
+    return res.status(200).json({
+      success: true,
+      message: 'تم تحديث قائمة أفضل 3 طلاب بنجاح 🏆',
+      topPerformers: updated
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getProfiles,
   deleteProfile,
-  getDashboardStats
+  getDashboardStats,
+  getTopPerformers,
+  updateTopPerformers
 };
