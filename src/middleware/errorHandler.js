@@ -1,9 +1,13 @@
 // src/middleware/errorHandler.js
 const errorHandler = (err, req, res, next) => {
+  // Ensure CORS headers are explicitly set on error responses
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Credentials', 'true');
+
   // Handle multer file size limit error
   if (err.code === 'LIMIT_FILE_SIZE') {
     err.statusCode = 400;
-    err.message = 'حجم الملف كبير جداً، الحد الأقصى المسموح به هو 10 ميجابايت';
+    err.message = 'حجم الملف كبير جداً ويتجاوز الحد الأقصى المسموح به للسيرفر.';
   }
 
   err.statusCode = err.statusCode || 500;
@@ -16,10 +20,12 @@ const errorHandler = (err, req, res, next) => {
     stack: err.stack
   });
 
-  // Return formatted error response that the frontend expects (data.error)
+  // Return formatted error response compatible with frontend (both `error` and `message` key support)
   res.status(err.statusCode).json({
+    success: false,
     status: err.status,
-    error: err.message || 'حدث خطأ غير متوقع في السيرفر'
+    error: err.message || 'حدث خطأ غير متوقع في السيرفر',
+    message: err.message || 'حدث خطأ غير متوقع في السيرفر'
   });
 };
 

@@ -47,9 +47,9 @@ const apiLimiter = rateLimit({
 });
 app.use('/api/', apiLimiter);
 
-// Parse incoming JSON and URLencoded requests with higher limits for submissions
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+// Parse incoming JSON and URLencoded requests (dynamic file size limits are enforced per-assignment via assignment.max_upload_size)
+app.use(express.json({ limit: '500mb' }));
+app.use(express.urlencoded({ limit: '500mb', extended: true }));
 
 // Mount module routes
 app.use('/api/auth', authRoutes);
